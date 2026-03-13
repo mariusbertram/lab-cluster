@@ -26,14 +26,24 @@ hosts:
               - ip: {{ node.ip }}
                 prefix-length: {{ machine_network | ansible.utils.ipaddr('prefix') }}
             dhcp: false
+          ipv6:
+            enabled: true
+            address:
+              - ip: {{ node.ipv6 }}
+                prefix-length: {{ machine_network_ipv6 | ansible.utils.ipaddr('prefix') }}
+            dhcp: false
       dns-resolver:
         config:
           server:
             - {{ cluster_network_dns }}
+            - {{ cluster_network_dns_ipv6 | default(cluster_ipv6_dns) }}
       routes:
         config:
           - destination: 0.0.0.0/0
             next-hop-address: {{ cluster_network_gateway }}
+            next-hop-interface: enp1s0
+          - destination: ::/0
+            next-hop-address: {{ cluster_ipv6_gateway }}
             next-hop-interface: enp1s0
 {% endfor %}
 

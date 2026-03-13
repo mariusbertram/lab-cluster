@@ -52,12 +52,15 @@ output "ingress_vip" {
 output "ansible_inventory" {
   description = "Complete node information for the dynamic Ansible inventory"
   value = {
-    cluster_name   = var.cluster_name
-    cluster_domain = var.cluster_domain
-    api_vip        = var.api_vip
-    ingress_vip    = var.ingress_vip
-    network_cidr   = var.network_cidr
-    kvm_host       = var.libvirt_uri
+    cluster_name     = var.cluster_name
+    cluster_domain   = var.cluster_domain
+    api_vip          = var.api_vip
+    api_vip_ipv6     = var.api_vip_ipv6
+    ingress_vip      = var.ingress_vip
+    ingress_vip_ipv6 = var.ingress_vip_ipv6
+    network_cidr     = "${var.network_address}/${var.network_prefix}"
+    network_ipv6_cidr = "${var.network_ipv6_address}/${var.network_ipv6_prefix}"
+    kvm_host         = var.libvirt_uri
 
     masters = { for k, m in module.masters : k => {
       ansible_host      = m.ip_address

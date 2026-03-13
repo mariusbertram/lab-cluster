@@ -8,11 +8,15 @@ networking:
   networkType: OVNKubernetes
   machineNetwork:
     - cidr: {{ machine_network }}
+    - cidr: {{ machine_network_ipv6 }}
   serviceNetwork:
     - {{ service_network }}
+    - {{ service_network_ipv6 }}
   clusterNetwork:
     - cidr: {{ pod_network }}
       hostPrefix: 23
+    - cidr: {{ pod_network_ipv6 }}
+      hostPrefix: 64
 
 compute:
   - name: worker
@@ -28,8 +32,10 @@ platform:
   baremetal:
     apiVIPs:
       - {{ api_vip }}
+      - {{ api_vip_ipv6 }}
     ingressVIPs:
       - {{ ingress_vip }}
+      - {{ ingress_vip_ipv6 }}
 
 pullSecret: '{{ lookup("file", pull_secret_path) }}'
 sshKey: '{{ lookup("file", ssh_public_key_path) }}'

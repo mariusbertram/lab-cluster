@@ -3,7 +3,7 @@
 Dynamic Ansible inventory for LAP-Cluster.
 
 Data sources (in priority order):
-  1. Terraform State  – reads `terraform output -json` from the Terraform directory
+  1. Terraform State – reads `terraform output -json` from the Terraform directory
   2. Redfish/Sushy-Tools – queries the Redfish API to dynamically discover VMs
 
 Configuration via environment variables:
@@ -32,19 +32,38 @@ import urllib.request
 import urllib.error
 import base64
 import ssl
+import yaml
 
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-TERRAFORM_DIR = os.environ.get("TERRAFORM_DIR", os.path.join(SCRIPT_DIR, "..", "..", "terraform"))
-SUSHY_HOST = os.environ.get("SUSHY_HOST", "192.168.1.100")
-SUSHY_PORT = os.environ.get("SUSHY_PORT", "8000")
-SUSHY_PROTOCOL = os.environ.get("SUSHY_PROTOCOL", "http")
-SUSHY_USERNAME = os.environ.get("SUSHY_USERNAME", "admin")
-SUSHY_PASSWORD = os.environ.get("SUSHY_PASSWORD", "password")
-KVM_HOST = os.environ.get("KVM_HOST", "192.168.1.100")
-KVM_USER = os.environ.get("KVM_USER", "root")
+ALL_YML = os.path.join(SCRIPT_DIR, "group_vars", "all.yml")
+
+# Load variables from all.yml if it exists
+GLOBAL_VARS = {}
+if os.path.exists(ALL_YML):
+    with open(ALL_YML, 'r') as f:
+        try:
+            GLOBAL_VARS = yaml.safe_load(f) or {}
+        except yaml.YAMLError:
+            pass
+
+TERRAFORM_DIR = os.environ.get("TERRAFORM_DIR", os.path.join(SCRIPT_DIR, "..", "terraform"))
+if not os.path.exists(TERRAFORM_DIR):
+    sys.stderr.write(f"[inventory] DEBUG: Terraform directory not found: {TERRAFORM_DIR}\n")
+else:
+    sys.stderr.write(f"[inventory] DEBUG: Terraform directory found: {TERRAFORM_DIR}\n")
+SUSHY_HOST = os.environ.get("SUSHY_HOST", GLOBAL_VARS.get("sushy_host", "192.168.1.100"))
+SUSHY_PORT = os.environ.get("SUSHY_PORT", GLOBAL_VARS.get("sushy_port", "8000"))
+SUSHY_PROTOCOL = os.environ.get("SUSHY_PROTOCOL", GLOBAL_VARS.get("sushy_protocol", "http"))
+SUSHY_USERNAME = os.environ.get("SUSHY_USERNAME", GLOBAL_VARS.get("redfish_username", "admin"))
+SUSHY_PASSWORD = os.environ.get("SUSHY_PASSWORD", GLOBAL_VARS.get("redfish_password", "password"))
+KVM_HOST = os.environ.get("KVM_HOST", GLOBAL_VARS.get("libvirt_uri", "192.168.1.100").split("@")[-1].split("/")[0] if "ssh" in GLOBAL_VARS.get("libvirt_uri", "") else "127.0.0.1")
+# For now, let's keep it simple or use defaults from all.yml if we add them.
+# I'll add kvm_host and kvm_user to all.yml for clarity.
+KVM_HOST = os.environ.get("KVM_HOST", GLOBAL_VARS.get("kvm_host", "192.168.1.100"))
+KVM_USER = os.environ.get("KVM_USER", GLOBAL_VARS.get("kvm_user", "root"))
 INVENTORY_SOURCE = os.environ.get("INVENTORY_SOURCE", "auto")
 
 
@@ -355,6 +374,89 @@ def get_host_vars(hostname, inventory):
     return {}
 
 
+def build_inventory_from_vars(vars_data):
+    """Builds the inventory from the global variables in all.yml (fallback)."""
+    hostvars = {}
+    master_hosts = []
+    worker_hosts = []
+
+    inventory = {
+        "_meta": {"hostvars": hostvars},
+        "all": {
+            "children": ["kvm_host", "bastion", "masters", "workers", "cluster"],
+            "vars": {
+                "cluster_name": vars_data.get("cluster_name", ""),
+                "base_domain": vars_data.get("base_domain", ""),
+                "api_vip": vars_data.get("api_vip", ""),
+                "ingress_vip": vars_data.get("ingress_vip", ""),
+                "network_cidr": vars_data.get("cluster_network_cidr", ""),
+            },
+        },
+        "kvm_host": {"hosts": ["hypervisor"]},
+        "bastion": {"hosts": ["hypervisor"]},
+        "masters": {"hosts": master_hosts},
+        "workers": {"hosts": worker_hosts},
+        "cluster": {"children": ["masters", "workers"]},
+    }
+
+    hostvars["hypervisor"] = {
+        "ansible_host": KVM_HOST,
+        "ansible_user": KVM_USER,
+        "ansible_connection": "ssh",
+    }
+
+    bmc_address = f"{SUSHY_HOST}:{SUSHY_PORT}"
+    
+    # Process Masters
+    master_nodes_list = []
+    for node in vars_data.get("nodes", {}).get("masters", []):
+        name = node["name"]
+        master_hosts.append(name)
+        hostvars[name] = {
+            "ansible_host": node["ip"],
+            "mac": node["mac"],
+            "ipv6": node.get("ipv6", ""),
+            "bmc_address": bmc_address,
+            "redfish_system_id": name,
+            "node_role": "master",
+        }
+        master_nodes_list.append({
+            "hostname": name,
+            "role": "master",
+            "ip": node["ip"],
+            "ipv6": node.get("ipv6", ""),
+            "mac": node["mac"],
+            "bmc_address": bmc_address,
+            "redfish_system_id": name,
+        })
+
+    # Process Workers
+    worker_nodes_list = []
+    for node in vars_data.get("nodes", {}).get("workers", []):
+        name = node["name"]
+        worker_hosts.append(name)
+        hostvars[name] = {
+            "ansible_host": node["ip"],
+            "mac": node["mac"],
+            "ipv6": node.get("ipv6", ""),
+            "bmc_address": bmc_address,
+            "redfish_system_id": name,
+            "node_role": "worker",
+        }
+        worker_nodes_list.append({
+            "hostname": name,
+            "role": "worker",
+            "ip": node["ip"],
+            "ipv6": node.get("ipv6", ""),
+            "mac": node["mac"],
+            "bmc_address": bmc_address,
+            "redfish_system_id": name,
+        })
+
+    inventory["all"]["vars"]["master_nodes"] = master_nodes_list
+    inventory["all"]["vars"]["worker_nodes"] = worker_nodes_list
+    return inventory
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -376,6 +478,12 @@ def main():
         inventory = load_from_redfish()
         if inventory:
             sys.stderr.write("[inventory] Source: Redfish/Sushy-Tools API\n")
+
+    # Fallback to local variables if everything else fails
+    if inventory is None and GLOBAL_VARS:
+        inventory = build_inventory_from_vars(GLOBAL_VARS)
+        if inventory:
+            sys.stderr.write("[inventory] Source: Local Variables (all.yml)\n")
 
     if inventory is None:
         sys.stderr.write("[inventory] WARNING: No data source available. Empty inventory.\n")

@@ -1,0 +1,9 @@
+collections:
+  - name: ansible.utils
+    version: ">=2.10.0"
+  - name: community.general
+    version: ">=7.0.0"
+  - name: ubiquiti.unifi_api
+    source: https://apidoc-cdn.ui.com/ansible-module/ubiquiti-unifi_api-latest.tar.gz
+    type: url
+

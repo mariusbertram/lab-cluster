@@ -1,0 +1,48 @@
+---
+- name: "{{ node.name }} – Find existing client"
+  ansible.builtin.set_fact:
+    existing_client: "{{ current_clients.json.data | selectattr('mac', 'equalto', node.mac | lower) | list | first | default({}) }}"
+
+- name: "{{ node.name }} – Create client if not exists"
+  ansible.builtin.uri:
+    url: "{{ unifi_base_url }}/proxy/network/api/s/{{ unifi_site_name | lower }}/rest/user"
+    method: POST
+    headers:
+      X-API-Key: "{{ unifi_token }}"
+      Authorization: "Bearer {{ unifi_token }}"
+    validate_certs: "{{ unifi_verify_ssl }}"
+    body_format: json
+    body:
+      mac: "{{ node.mac | lower }}"
+      name: "{{ node.name }}.{{ cluster_name }}"
+  register: create_result
+  when: existing_client | length == 0
+
+- name: "{{ node.name }} – Determine target _id"
+  ansible.builtin.set_fact:
+    target_client_id: >-
+      {%- if create_result is not skipped and create_result.json is defined -%}
+      {{ create_result.json.data[0]._id }}
+      {%- else -%}
+      {{ existing_client.get('_id', '') }}
+      {%- endif -%}
+
+- name: "{{ node.name }} – Set Fixed IP and VLAN Override (PUT)"
+  ansible.builtin.uri:
+    url: "{{ unifi_base_url }}/proxy/network/api/s/{{ unifi_site_name | lower }}/rest/user/{{ target_client_id }}"
+    method: PUT
+    headers:
+      X-API-Key: "{{ unifi_token }}"
+      Authorization: "Bearer {{ unifi_token }}"
+    validate_certs: "{{ unifi_verify_ssl }}"
+    body_format: json
+    body:
+      name: "{{ node.name }}.{{ cluster_name }}"
+      display_name: "{{ node.name }}.{{ cluster_name }}"
+      local_dns_record_enabled: false
+      local_dns_record: ""
+      virtual_network_override_enabled: true
+      virtual_network_override_id: "{{ unifi_vlan_id }}"
+      use_fixedip: true
+      fixed_ip: "{{ node.ip }}"
+    status_code: [200]

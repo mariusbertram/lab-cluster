@@ -1,0 +1,116 @@
+---
+# =============================================================================
+# Global variables for the LAP-Cluster
+# Single source of truth for Terraform and Ansible
+# =============================================================================
+
+# ---------- Infrastructure (Terraform) ----------
+libvirt_uri: "qemu:///system"
+kvm_host: "192.168.1.100"
+kvm_user: "root"
+network_name: "ocp-net"
+storage_pool_path: "/var/lib/libvirt/images/ocp"
+# The ISO path will be referenced by both Terraform (to mount it)
+# and Ansible (to create it).
+agent_iso_path: "/var/lib/libvirt/images/agent.x86_64.iso"
+
+# ---------- Cluster Basics ----------
+cluster_name: "ocp"
+base_domain: "lab.brtrm.dev"
+ocp_version: "4.21.4"
+ocp_release_image: "quay.io/openshift-release-dev/ocp-release:{{ ocp_version }}-x86_64"
+
+# ---------- Network ----------
+cluster_network_cidr: "192.168.150.0/24"
+cluster_network_gateway: "192.168.150.1"
+cluster_network_dns: "192.168.150.1"
+api_vip: "192.168.150.10"
+ingress_vip: "192.168.150.11"
+
+# IPv6 Configuration (fd60::1/64)
+cluster_ipv6_cidr: "fd60::/64"
+cluster_ipv6_gateway: "fd60::1"
+cluster_ipv6_dns: "fd60::1"
+api_vip_ipv6: "fd60::10"
+ingress_vip_ipv6: "fd60::11"
+
+machine_network: "192.168.150.0/24"
+machine_network_ipv6: "fd60::/64"
+service_network: "172.30.0.0/16"
+service_network_ipv6: "fdff:10:128::/112"
+pod_network: "10.128.0.0/14"
+pod_network_ipv6: "fd02:10:128::/64"
+
+# ---------- Node Definitions ----------
+# Used to generate terraform.tfvars.json
+nodes:
+  masters:
+    - name: "master-0"
+      vcpu: 4
+      memory: 16384
+      disk_size: 120
+      mac: "52:54:00:aa:bb:01"
+      ip: "192.168.150.20"
+      ipv6: "fd60::20"
+    - name: "master-1"
+      vcpu: 4
+      memory: 16384
+      disk_size: 120
+      mac: "52:54:00:aa:bb:02"
+      ip: "192.168.150.21"
+      ipv6: "fd60::21"
+    - name: "master-2"
+      vcpu: 4
+      memory: 16384
+      disk_size: 120
+      mac: "52:54:00:aa:bb:03"
+      ip: "192.168.150.22"
+      ipv6: "fd60::22"
+  workers:
+    - name: "worker-0"
+      vcpu: 4
+      memory: 16384
+      disk_size: 200
+      mac: "52:54:00:aa:cc:01"
+      ip: "192.168.150.30"
+      ipv6: "fd60::30"
+    - name: "worker-1"
+      vcpu: 4
+      memory: 16384
+      disk_size: 200
+      mac: "52:54:00:aa:cc:02"
+      ip: "192.168.150.31"
+      ipv6: "fd60::31"
+    - name: "worker-2"
+      vcpu: 4
+      memory: 16384
+      disk_size: 200
+      mac: "52:54:00:aa:cc:03"
+      ip: "192.168.150.32"
+      ipv6: "fd60::32"
+
+# ---------- Sushy-Tools / Redfish ----------
+sushy_host: "192.168.1.100"
+sushy_port: 8000
+sushy_protocol: "http"
+redfish_username: "admin"
+redfish_password: "password"
+
+# ---------- Unifi (API Token Auth) ----------
+unifi_base_url: "https://192.168.1.1"
+# Best practice: Set this via environment variable UBIQUITI_API_TOKEN
+unifi_token: "{{ lookup('env', 'UBIQUITI_API_TOKEN') | default('your_token_here') }}"
+unifi_site_name: "default"
+unifi_network_name: "VLAN 10" # Name of your VLAN 10 network in UniFi
+unifi_verify_ssl: false
+
+# ---------- Paths ----------
+installer_workdir: "/opt/ocp-installer"
+pull_secret_path: "/opt/ocp-installer/pull-secret.json"
+ssh_public_key_path: "~/.ssh/id_rsa.pub"
+# agent_iso_output is same as agent_iso_path
+agent_iso_output: "{{ agent_iso_path }}"
+
+# ---------- OpenShift Installer ----------
+openshift_installer_url: "https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/{{ ocp_version }}/openshift-install-linux.tar.gz"
+oc_client_url: "https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/{{ ocp_version }}/openshift-client-linux.tar.gz"

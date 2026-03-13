@@ -41,6 +41,11 @@ variable "ip_address" {
   type        = string
 }
 
+variable "ipv6_address" {
+  description = "Static IPv6 address of the VM"
+  type        = string
+}
+
 variable "boot_iso_path" {
   description = "Path to the boot ISO (Agent-Based Installer)"
   type        = string

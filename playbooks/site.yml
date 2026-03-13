@@ -10,22 +10,39 @@
       ansible.builtin.debug:
         msg: |
           Deploying OpenShift Cluster: {{ cluster_name }}.{{ base_domain }}
-          Masters: {{ master_nodes | length }}
-          Workers: {{ worker_nodes | length }}
+          Masters: {{ nodes.masters | length }}
+          Workers: {{ nodes.workers | length }}
           API VIP: {{ api_vip }}
           Ingress VIP: {{ ingress_vip }}
 
+- name: "Phase 0 – Infrastructure Provisioning"
+  ansible.builtin.import_playbook: 00-infrastructure.yml
+  tags: infrastructure
+
+- name: "Phase 0.4 – UniFi Client Provisioning"
+  ansible.builtin.import_playbook: 00.4-unifi-clients.yml
+  tags: unifi_clients
+
+- name: "Phase 0.5 – DNS Provisioning"
+  ansible.builtin.import_playbook: 00.5-dns.yml
+  tags: dns
+
 - name: "Phase 1 – Prepare installer"
   ansible.builtin.import_playbook: 01-prepare-installer.yml
+  tags: prepare
 
 - name: "Phase 2 – Generate agent ISO"
   ansible.builtin.import_playbook: 02-generate-agent-iso.yml
+  tags: iso
 
 - name: "Phase 3 – Boot nodes via Redfish/Sushy"
   ansible.builtin.import_playbook: 03-boot-nodes.yml
+  tags: boot
 
 - name: "Phase 4 – Wait for installation"
   ansible.builtin.import_playbook: 04-wait-for-install.yml
+  tags: wait
 
 - name: "Phase 5 – Day-2 configuration"
   ansible.builtin.import_playbook: 05-day2-config.yml
+  tags: day2

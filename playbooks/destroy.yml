@@ -1,0 +1,103 @@
+---
+# =============================================================================
+# LAP-Cluster – Full Cleanup Playbook
+# Reverses all configuration steps (Infrastructure, UniFi, Local Artifacts)
+# =============================================================================
+- name: "LAP-Cluster – Full Cleanup"
+  hosts: localhost
+  gather_facts: false
+  vars:
+    # Helper to collect all MACs for client cleanup
+    all_macs: "{{ (nodes.masters | map(attribute='mac') | list) + (nodes.workers | map(attribute='mac') | list) }}"
+    # Helper to identify our DNS records
+    domain_suffix: "{{ cluster_name }}.{{ base_domain }}"
+
+  tasks:
+    - name: "Phase 1: UniFi Cleanup (DNS & Clients)"
+      block:
+        - name: Get site information
+          ubiquiti.unifi_api.network:
+            method: GET
+            path: "/v1/sites"
+          register: unifi_sites
+
+        - name: Find site ID
+          ansible.builtin.set_fact:
+            unifi_site_id: >-
+              {{
+                (
+                  unifi_sites.data.data 
+                  | selectattr('name', 'defined') 
+                  | selectattr('name', 'match', unifi_site_name, ignorecase=true) | first 
+                ).id
+              }}
+
+        # --- DNS Cleanup ---
+        - name: Get all DNS policies
+          ubiquiti.unifi_api.network:
+            method: GET
+            path: "/v1/sites/{{ unifi_site_id }}/dns/policies"
+          register: current_dns
+
+        - name: Delete DNS records matching our cluster domain
+          ubiquiti.unifi_api.network:
+            method: DELETE
+            path: "/v1/sites/{{ unifi_site_id }}/dns/policies/{{ item.id }}"
+          loop: "{{ current_dns.data.data }}"
+          when: 
+            - item.domain is defined
+            - item.domain is search(domain_suffix)
+          loop_control:
+            label: "{{ item.domain }}"
+
+        # --- Client Cleanup (Legacy stamgr via URI) ---
+        - name: Forget clients in UniFi
+          ansible.builtin.uri:
+            url: "{{ unifi_base_url }}/proxy/network/api/s/{{ unifi_site_name | lower }}/cmd/stamgr"
+            method: POST
+            headers:
+              X-API-Key: "{{ unifi_token }}"
+              Authorization: "Bearer {{ unifi_token }}"
+            validate_certs: "{{ unifi_verify_ssl }}"
+            body_format: json
+            body:
+              macs: "{{ (nodes.masters | map(attribute='mac') | list) + (nodes.workers | map(attribute='mac') | list) | map('lower') | list }}"
+              cmd: "forget-sta"
+            status_code: [200]
+          ignore_errors: true # In case some were already deleted
+
+      module_defaults:
+        ubiquiti.unifi_api.network:
+          base_url: "{{ unifi_base_url }}"
+          token: "{{ unifi_token }}"
+          validate_certs: "{{ unifi_verify_ssl }}"
+      tags: unifi_cleanup
+
+    - name: "Phase 2: Terraform Destroy"
+      block:
+        - name: Terraform Destroy
+          ansible.builtin.command:
+            cmd: terraform destroy -auto-approve
+            chdir: "{{ playbook_dir }}/../terraform"
+          register: tf_destroy
+          changed_when: "'Destroy complete!' in tf_destroy.stdout"
+      tags: terraform_cleanup
+
+    - name: "Phase 3: Local Artifact Cleanup"
+      block:
+        - name: Remove generated ISO
+          ansible.builtin.file:
+            path: "{{ agent_iso_output }}"
+            state: absent
+
+        - name: Remove Terraform vars file
+          ansible.builtin.file:
+            path: "{{ playbook_dir }}/../terraform/terraform.tfvars.json"
+            state: absent
+
+        - name: Remove OCP installer workdir (optional cleanup)
+          ansible.builtin.file:
+            path: "{{ installer_workdir }}/cluster-config"
+            state: absent
+          become: true # installer files are often root-owned
+      tags: local_cleanup

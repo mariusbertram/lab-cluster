@@ -1,0 +1,64 @@
+---
+# =============================================================================
+# unifi_client_config – Register VMs with VLAN Override and Fixed IPs
+# =============================================================================
+
+- name: Manage UniFi Clients
+  block:
+    - name: Get site information (via Ansible Module)
+      ubiquiti.unifi_api.network:
+        method: GET
+        path: "/v1/sites"
+      register: unifi_sites
+
+    - name: Find site ID
+      ansible.builtin.set_fact:
+        unifi_site_id: >-
+          {{
+            (
+              unifi_sites.data.data 
+              | selectattr('name', 'defined') 
+              | selectattr('name', 'match', unifi_site_name, ignorecase=true) | first 
+            ).id
+          }}
+
+    - name: Get all networks (Legacy REST via URI)
+      ansible.builtin.uri:
+        url: "{{ unifi_base_url }}/proxy/network/api/s/{{ unifi_site_name | lower }}/rest/networkconf"
+        method: GET
+        headers:
+          X-API-Key: "{{ unifi_token }}"
+          Authorization: "Bearer {{ unifi_token }}"
+        validate_certs: "{{ unifi_verify_ssl }}"
+      register: unifi_networks
+
+    - name: Find VLAN Network ID
+      ansible.builtin.set_fact:
+        unifi_vlan_id: "{{ (unifi_networks.json.data | selectattr('name', 'equalto', unifi_network_name) | first)._id }}"
+
+    - name: Get all existing clients (Legacy REST via URI)
+      ansible.builtin.uri:
+        url: "{{ unifi_base_url }}/proxy/network/api/s/{{ unifi_site_name | lower }}/rest/user"
+        method: GET
+        headers:
+          X-API-Key: "{{ unifi_token }}"
+          Authorization: "Bearer {{ unifi_token }}"
+        validate_certs: "{{ unifi_verify_ssl }}"
+      register: current_clients
+
+    - name: Combine all nodes
+      ansible.builtin.set_fact:
+        all_cluster_nodes: "{{ nodes.masters + nodes.workers }}"
+
+    - name: Register and Update Clients
+      ansible.builtin.include_tasks: upsert_client.yml
+      loop: "{{ all_cluster_nodes }}"
+      loop_control:
+        loop_var: node
+        label: "{{ node.name }}"
+
+  module_defaults:
+    ubiquiti.unifi_api.network:
+      base_url: "{{ unifi_base_url }}"
+      token: "{{ unifi_token }}"
+      validate_certs: "{{ unifi_verify_ssl }}"

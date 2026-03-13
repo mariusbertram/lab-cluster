@@ -26,19 +26,45 @@ variable "network_name" {
   default     = "ocp-net"
 }
 
-variable "network_cidr" {
-  description = "CIDR of the cluster network"
+variable "network_address" {
+  description = "IP address of the cluster network gateway (IPv4)"
   type        = string
-  default     = "192.168.150.0/24"
+}
+
+variable "network_prefix" {
+  description = "Prefix of the cluster network (IPv4)"
+  type        = number
+  default     = 24
+}
+
+variable "network_ipv6_address" {
+  description = "IP address of the cluster network gateway (IPv6)"
+  type        = string
+}
+
+variable "network_ipv6_prefix" {
+  description = "Prefix of the cluster network (IPv6)"
+  type        = number
+  default     = 64
 }
 
 variable "api_vip" {
-  description = "Virtual IP for the API"
+  description = "Virtual IP for the API (IPv4)"
+  type        = string
+}
+
+variable "api_vip_ipv6" {
+  description = "Virtual IP for the API (IPv6)"
   type        = string
 }
 
 variable "ingress_vip" {
-  description = "Virtual IP for Ingress"
+  description = "Virtual IP for Ingress (IPv4)"
+  type        = string
+}
+
+variable "ingress_vip_ipv6" {
+  description = "Virtual IP for Ingress (IPv6)"
   type        = string
 }
 
@@ -65,6 +91,7 @@ variable "masters" {
     disk_size = number # GiB
     mac       = string
     ip        = string
+    ipv6      = string
   }))
 }
 
@@ -77,6 +104,7 @@ variable "workers" {
     disk_size = number
     mac       = string
     ip        = string
+    ipv6      = string
   }))
   default = []
 }

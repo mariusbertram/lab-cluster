@@ -1,0 +1,20 @@
+---
+ansible-navigator:
+  ansible:
+    inventory:
+      entries:
+        - inventory/dynamic_inventory.py
+  execution-environment:
+    image: quay.io/ansible/creator-ee:latest
+    enabled: true
+    pull:
+      policy: missing
+    volume-mounts:
+      - src: "/var/run/libvirt/libvirt-sock"
+        dest: "/var/run/libvirt/libvirt-sock"
+        options: "rw"
+      - src: "/home/marius/.ssh"
+        dest: "/home/marius/.ssh"
+        options: "ro"
+  playbook-artifact:
+    enable: false

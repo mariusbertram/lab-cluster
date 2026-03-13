@@ -28,9 +28,11 @@ terraform/override.tf.json
 # =============================================================================
 # Ansible
 # =============================================================================
-ansible/inventory/group_vars/all.yml
-ansible/*.retry
-ansible/collections/
+inventory/group_vars/all.yml
+*.retry
+collections/
+ansible-navigator.log
+.ansible-navigator.log
 
 # =============================================================================
 # OpenShift / Secrets
@@ -42,7 +44,7 @@ pull-secret.json
 **/auth/
 **/.openshift_install*
 **/agent.x86_64.iso
-
+.env
 # =============================================================================
 # Allgemein
 # =============================================================================

@@ -1,0 +1,9 @@
+---
+# =============================================================================
+# Phase 0.5 – Provision DNS records on UniFi
+# =============================================================================
+- name: "Provision DNS on UniFi"
+  hosts: localhost
+  gather_facts: false
+  roles:
+    - role: unifi_dns
