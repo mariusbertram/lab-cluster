@@ -1,0 +1,9 @@
+---
+# Default values for redfish_boot
+sushy_protocol: "http"
+redfish_username: "admin"
+redfish_password: "password"
+redfish_boot_source_override: "Cd"
+redfish_boot_mode: "UEFI"
+boot_wait_seconds: 10
+

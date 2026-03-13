@@ -1,0 +1,37 @@
+---
+# =============================================================================
+# Phase 1 – Download OpenShift Installer and oc CLI
+# =============================================================================
+- name: "Prepare OpenShift Installer"
+  hosts: bastion
+  become: true
+  tasks:
+    - name: Create installer working directory
+      ansible.builtin.file:
+        path: "{{ installer_workdir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Download OpenShift Installer
+      ansible.builtin.unarchive:
+        src: "{{ openshift_installer_url }}"
+        dest: /usr/local/bin/
+        remote_src: true
+        creates: /usr/local/bin/openshift-install
+
+    - name: Download OpenShift CLI (oc)
+      ansible.builtin.unarchive:
+        src: "{{ oc_client_url }}"
+        dest: /usr/local/bin/
+        remote_src: true
+        creates: /usr/local/bin/oc
+
+    - name: Check if pull secret exists
+      ansible.builtin.stat:
+        path: "{{ pull_secret_path }}"
+      register: pull_secret_stat
+
+    - name: Fail if pull secret is missing
+      ansible.builtin.fail:
+        msg: "Pull secret not found at {{ pull_secret_path }}. Please download from console.redhat.com."
+      when: not pull_secret_stat.stat.exists

@@ -1,0 +1,49 @@
+---
+# =============================================================================
+# Global variables for the LAP-Cluster
+# Copy to all.yml and adjust values
+#
+# NOTE: Node definitions (master_nodes, worker_nodes) as well as
+# cluster_name, base_domain, api_vip and ingress_vip are
+# automatically populated by the dynamic inventory from Terraform
+# or the Redfish API. Values defined here serve as fallback.
+# =============================================================================
+
+# ---------- Cluster Basics (fallback if no Terraform state) ----------
+cluster_name: "lap-cluster"
+base_domain: "lab.local"
+ocp_version: "4.16"
+ocp_release_image: "quay.io/openshift-release-dev/ocp-release:4.16.0-x86_64"
+
+# ---------- Network (fallback) ----------
+cluster_network_cidr: "192.168.150.0/24"
+cluster_network_gateway: "192.168.150.1"
+cluster_network_dns: "192.168.150.1"
+api_vip: "192.168.150.10"
+ingress_vip: "192.168.150.11"
+
+machine_network: "192.168.150.0/24"
+service_network: "172.30.0.0/16"
+pod_network: "10.128.0.0/14"
+
+# ---------- Sushy-Tools / Redfish ----------
+sushy_host: "192.168.1.100"
+sushy_port: 8000
+sushy_protocol: "http"
+redfish_username: "admin"
+redfish_password: "password"
+
+# ---------- Paths ----------
+installer_workdir: "/opt/ocp-installer"
+pull_secret_path: "/opt/ocp-installer/pull-secret.json"
+ssh_public_key_path: "~/.ssh/id_rsa.pub"
+agent_iso_output: "/var/lib/libvirt/images/agent.x86_64.iso"
+
+# ---------- OpenShift Installer ----------
+openshift_installer_url: "https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/{{ ocp_version }}/openshift-install-linux.tar.gz"
+oc_client_url: "https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/{{ ocp_version }}/openshift-client-linux.tar.gz"
+
+# ---------- Dynamic Inventory ----------
+# Source: "auto" (Terraform first, then Redfish), "terraform" or "redfish"
+# Set as environment variable INVENTORY_SOURCE
+# inventory_source: "auto"

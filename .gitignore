@@ -1,0 +1,55 @@
+### IntelliJ IDEA ###
+.idea/
+*.iml
+out/
+!**/src/main/**/out/
+!**/src/test/**/out/
+.kotlin
+
+### VS Code ###
+.vscode/
+
+### Mac OS ###
+.DS_Store
+
+# =============================================================================
+# Terraform
+# =============================================================================
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/terraform.tfstate
+terraform/terraform.tfstate.backup
+terraform/terraform.tfvars
+terraform/*.auto.tfvars
+terraform/crash.log
+terraform/override.tf
+terraform/override.tf.json
+
+# =============================================================================
+# Ansible
+# =============================================================================
+ansible/inventory/group_vars/all.yml
+ansible/*.retry
+ansible/collections/
+
+# =============================================================================
+# OpenShift / Secrets
+# =============================================================================
+pull-secret.json
+**/pull-secret*
+**/kubeconfig
+**/kubeadmin-password
+**/auth/
+**/.openshift_install*
+**/agent.x86_64.iso
+
+# =============================================================================
+# Allgemein
+# =============================================================================
+*.log
+*.bak
+*.swp
+*.swo
+*~
+__pycache__/
+*.pyc

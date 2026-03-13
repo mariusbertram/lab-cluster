@@ -1,0 +1,8 @@
+---
+# Default values for day-2 configuration
+day2_approve_csrs: true
+day2_configure_htpasswd: false
+day2_configure_ntp: true
+day2_ntp_servers:
+  - "pool.ntp.org"
+

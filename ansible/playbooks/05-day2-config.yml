@@ -1,0 +1,12 @@
+---
+# =============================================================================
+# Phase 5 – Day-2 configuration of the OpenShift cluster
+# =============================================================================
+- name: "Day-2 Configuration"
+  hosts: bastion
+  become: true
+  environment:
+    KUBECONFIG: "{{ installer_workdir }}/kubeconfig"
+  roles:
+    - role: day2_config
+

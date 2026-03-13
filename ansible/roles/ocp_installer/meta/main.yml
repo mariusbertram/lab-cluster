@@ -1,0 +1,5 @@
+---
+# Role: ocp_installer
+# Prepares the OpenShift Agent-Based Installer
+dependencies: []
+

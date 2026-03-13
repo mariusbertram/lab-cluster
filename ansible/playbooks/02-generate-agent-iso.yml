@@ -1,0 +1,57 @@
+---
+# =============================================================================
+# Phase 2 – Generate install-config.yaml, agent-config.yaml and build ISO
+# =============================================================================
+- name: "Generate Agent ISO"
+  hosts: bastion
+  become: true
+  tasks:
+    - name: Clean up old working directory
+      ansible.builtin.file:
+        path: "{{ installer_workdir }}/cluster-config"
+        state: absent
+
+    - name: Create cluster config directory
+      ansible.builtin.file:
+        path: "{{ installer_workdir }}/cluster-config"
+        state: directory
+        mode: "0755"
+
+    - name: Generate install-config.yaml from template
+      ansible.builtin.template:
+        src: "../templates/install-config.yaml.j2"
+        dest: "{{ installer_workdir }}/cluster-config/install-config.yaml"
+        mode: "0644"
+
+    - name: Generate agent-config.yaml from template
+      ansible.builtin.template:
+        src: "../templates/agent-config.yaml.j2"
+        dest: "{{ installer_workdir }}/cluster-config/agent-config.yaml"
+        mode: "0644"
+
+    - name: Create backup of config files
+      ansible.builtin.copy:
+        src: "{{ installer_workdir }}/cluster-config/{{ item }}"
+        dest: "{{ installer_workdir }}/{{ item }}.bak"
+        remote_src: true
+        mode: "0644"
+      loop:
+        - install-config.yaml
+        - agent-config.yaml
+
+    - name: Generate agent ISO
+      ansible.builtin.command:
+        cmd: openshift-install agent create image --dir {{ installer_workdir }}/cluster-config
+      register: iso_result
+      changed_when: iso_result.rc == 0
+
+    - name: Copy ISO to target location
+      ansible.builtin.copy:
+        src: "{{ installer_workdir }}/cluster-config/agent.x86_64.iso"
+        dest: "{{ agent_iso_output }}"
+        remote_src: true
+        mode: "0644"
+
+    - name: Display ISO path
+      ansible.builtin.debug:
+        msg: "Agent ISO created: {{ agent_iso_output }}"

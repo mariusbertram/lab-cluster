@@ -1,0 +1,72 @@
+---
+# =============================================================================
+# day2_config – Post-install tasks
+# =============================================================================
+
+- name: Check cluster availability
+  ansible.builtin.command:
+    cmd: oc get clusterversion
+  register: cluster_version
+  changed_when: false
+  retries: 10
+  delay: 30
+  until: cluster_version.rc == 0
+
+- name: Display cluster version
+  ansible.builtin.debug:
+    var: cluster_version.stdout_lines
+
+# --- Approve CSRs (worker nodes) ---
+- name: Approve pending CSRs
+  when: day2_approve_csrs
+  block:
+    - name: List pending CSRs
+      ansible.builtin.shell:
+        cmd: oc get csr -o jsonpath='{.items[?(@.status=={})].metadata.name}'
+      register: pending_csrs
+      changed_when: false
+
+    - name: Approve CSRs
+      ansible.builtin.command:
+        cmd: "oc adm certificate approve {{ item }}"
+      loop: "{{ pending_csrs.stdout.split() }}"
+      when: pending_csrs.stdout | length > 0
+      changed_when: true
+
+# --- Check all nodes ---
+- name: Display all nodes
+  ansible.builtin.command:
+    cmd: oc get nodes -o wide
+  register: cluster_nodes
+  changed_when: false
+
+- name: Node status
+  ansible.builtin.debug:
+    var: cluster_nodes.stdout_lines
+
+# --- Check cluster operators ---
+- name: Wait for cluster operators
+  ansible.builtin.shell:
+    cmd: |
+      oc get clusteroperators -o json | \
+      jq '[.items[] | select(.status.conditions[] | select(.type=="Available" and .status!="True"))] | length'
+  register: degraded_operators
+  changed_when: false
+  retries: 30
+  delay: 60
+  until: degraded_operators.stdout | trim == "0"
+
+- name: All cluster operators available
+  ansible.builtin.debug:
+    msg: "All cluster operators are available!"
+
+# --- Summary ---
+- name: Cluster info summary
+  ansible.builtin.debug:
+    msg: |
+      ============================================
+      Day-2 configuration complete!
+      ============================================
+      Console:  https://console-openshift-console.apps.{{ cluster_name }}.{{ base_domain }}
+      API:      https://api.{{ cluster_name }}.{{ base_domain }}:6443
+      ============================================

@@ -1,0 +1,31 @@
+---
+# =============================================================================
+# Site Playbook – Full OpenShift Deployment
+# =============================================================================
+- name: "LAP-Cluster – OpenShift Agent-Based Install"
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Display deployment info
+      ansible.builtin.debug:
+        msg: |
+          Deploying OpenShift Cluster: {{ cluster_name }}.{{ base_domain }}
+          Masters: {{ master_nodes | length }}
+          Workers: {{ worker_nodes | length }}
+          API VIP: {{ api_vip }}
+          Ingress VIP: {{ ingress_vip }}
+
+- name: "Phase 1 – Prepare installer"
+  ansible.builtin.import_playbook: 01-prepare-installer.yml
+
+- name: "Phase 2 – Generate agent ISO"
+  ansible.builtin.import_playbook: 02-generate-agent-iso.yml
+
+- name: "Phase 3 – Boot nodes via Redfish/Sushy"
+  ansible.builtin.import_playbook: 03-boot-nodes.yml
+
+- name: "Phase 4 – Wait for installation"
+  ansible.builtin.import_playbook: 04-wait-for-install.yml
+
+- name: "Phase 5 – Day-2 configuration"
+  ansible.builtin.import_playbook: 05-day2-config.yml

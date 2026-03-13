@@ -1,0 +1,39 @@
+---
+# =============================================================================
+# Phase 3 – Boot nodes via Sushy-Tools/Redfish API
+# =============================================================================
+- name: "Boot Nodes via Redfish (Sushy-Tools)"
+  hosts: bastion
+  gather_facts: false
+  tasks:
+    - name: Merge all cluster nodes
+      ansible.builtin.set_fact:
+        all_nodes: "{{ master_nodes + worker_nodes }}"
+
+    # --- Redfish: Discover VM UUIDs dynamically via Sushy-Tools ---
+    - name: Query Redfish systems (Sushy-Tools)
+      ansible.builtin.uri:
+        url: "{{ sushy_protocol }}://{{ sushy_host }}:{{ sushy_port }}/redfish/v1/Systems"
+        method: GET
+        user: "{{ redfish_username }}"
+        password: "{{ redfish_password }}"
+        force_basic_auth: true
+        return_content: true
+        validate_certs: false
+      register: redfish_systems
+
+    - name: Display Redfish system IDs
+      ansible.builtin.debug:
+        var: redfish_systems.json
+
+    # --- For each node: Insert virtual media and boot ---
+    - name: Boot nodes via Redfish
+      ansible.builtin.include_role:
+        name: redfish_boot
+      vars:
+        node_name: "{{ item.hostname }}"
+        node_bmc_address: "{{ item.bmc_address }}"
+        node_redfish_system_id: "{{ item.redfish_system_id }}"
+      loop: "{{ all_nodes }}"
+      loop_control:
+        label: "{{ item.hostname }}"

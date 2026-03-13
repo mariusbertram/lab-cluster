@@ -1,0 +1,5 @@
+---
+# Role: day2_config
+# Post-install configuration of the OpenShift cluster
+dependencies: []
+

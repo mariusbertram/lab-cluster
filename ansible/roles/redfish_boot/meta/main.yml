@@ -1,0 +1,5 @@
+---
+# Role: redfish_boot
+# Boots VMs via the Sushy-Tools Redfish API
+dependencies: []
+

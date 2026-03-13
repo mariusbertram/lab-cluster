@@ -1,0 +1,39 @@
+---
+apiVersion: v1beta1
+metadata:
+  name: {{ cluster_name }}
+
+rendezvousIP: {{ master_nodes[0].ip }}
+
+hosts:
+{% for node in master_nodes + worker_nodes %}
+  - hostname: {{ node.hostname }}
+    role: {{ node.role }}
+    rootDeviceHints:
+      deviceName: /dev/vda
+    interfaces:
+      - name: enp1s0
+        macAddress: {{ node.mac }}
+    networkConfig:
+      interfaces:
+        - name: enp1s0
+          type: ethernet
+          state: up
+          mac-address: {{ node.mac }}
+          ipv4:
+            enabled: true
+            address:
+              - ip: {{ node.ip }}
+                prefix-length: {{ machine_network | ansible.utils.ipaddr('prefix') }}
+            dhcp: false
+      dns-resolver:
+        config:
+          server:
+            - {{ cluster_network_dns }}
+      routes:
+        config:
+          - destination: 0.0.0.0/0
+            next-hop-address: {{ cluster_network_gateway }}
+            next-hop-interface: enp1s0
+{% endfor %}
+

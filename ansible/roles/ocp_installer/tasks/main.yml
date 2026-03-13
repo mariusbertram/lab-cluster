@@ -1,0 +1,41 @@
+---
+- name: Ensure required packages are installed
+  ansible.builtin.dnf:
+    name:
+      - nmstate
+      - python3-pip
+    state: present
+
+- name: Check if OpenShift Installer exists
+  ansible.builtin.stat:
+    path: /usr/local/bin/openshift-install
+  register: installer_binary
+
+- name: Download OpenShift Installer
+  ansible.builtin.unarchive:
+    src: "{{ openshift_installer_url }}"
+    dest: /usr/local/bin/
+    remote_src: true
+  when: not installer_binary.stat.exists
+
+- name: Check if oc CLI exists
+  ansible.builtin.stat:
+    path: /usr/local/bin/oc
+  register: oc_binary
+
+- name: Download oc CLI
+  ansible.builtin.unarchive:
+    src: "{{ oc_client_url }}"
+    dest: /usr/local/bin/
+    remote_src: true
+  when: not oc_binary.stat.exists
+
+- name: Verify installer version
+  ansible.builtin.command:
+    cmd: openshift-install version
+  register: installer_version
+  changed_when: false
+
+- name: Display installer version
+  ansible.builtin.debug:
+    var: installer_version.stdout_lines
