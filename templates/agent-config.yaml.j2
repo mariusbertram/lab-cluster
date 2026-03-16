@@ -5,8 +5,16 @@ metadata:
 
 rendezvousIP: {{ master_nodes[0].ip }}
 
+{% if cluster_flavor == 'sno' %}
+  {% set filtered_nodes = [master_nodes[0]] %}
+{% elif cluster_flavor == 'compact' %}
+  {% set filtered_nodes = master_nodes %}
+{% else %}
+  {% set filtered_nodes = master_nodes + worker_nodes %}
+{% endif %}
+
 hosts:
-{% for node in master_nodes + worker_nodes %}
+{% for node in filtered_nodes %}
   - hostname: {{ node.hostname }}
     role: {{ node.role }}
     rootDeviceHints:
@@ -49,5 +57,6 @@ hosts:
             next-hop-address: {{ cluster_network_gateway }}
             next-hop-interface: enp1s0
 {% endfor %}
+
 
 

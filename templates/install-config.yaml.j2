@@ -20,13 +20,17 @@ networking:
 
 compute:
   - name: worker
-    replicas: {{ worker_nodes | length }}
+    replicas: {{ 0 if cluster_flavor == 'compact' else worker_nodes | length }}
     architecture: amd64
 
 controlPlane:
   name: master
-  replicas: {{ master_nodes | length }}
+  replicas: {{ 1 if cluster_flavor == 'sno' else 3 }}
   architecture: amd64
+
+{% if cluster_flavor == 'compact' %}
+mastersSchedulable: true
+{% endif %}
 
 platform:
   baremetal:
@@ -44,6 +48,7 @@ platform:
         bmc:
           address: "redfish-virtualmedia://{{ sushy_host }}:{{ sushy_port }}/redfish/v1/Systems/{{ node.hostname }}"
           username: {{ redfish_username }}
+
           password: {{ redfish_password }}
           disableCertificateVerification: true
         bootMACAddress: {{ node.mac }}
