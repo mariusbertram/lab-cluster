@@ -2,32 +2,13 @@
 # =============================================================================
 # redfish_boot – Boots a VM via the Sushy-Tools Redfish API
 #
-# Required variables:
-#   - node_name:              Hostname of the VM
-#   - node_bmc_address:       Host:Port of the Sushy-Tools endpoint
-#   - node_redfish_system_id: Libvirt domain name / System ID in Sushy
+# Simplified version: ISO is already attached via Terraform.
+# Just ensures the node is powered on.
 # =============================================================================
 
-- name: "{{ node_name }} – Discover system UUID via Redfish"
-  ansible.builtin.uri:
-    url: "{{ sushy_protocol }}://{{ node_bmc_address }}/redfish/v1/Systems"
-    method: GET
-    user: "{{ redfish_username }}"
-    password: "{{ redfish_password }}"
-    force_basic_auth: true
-    validate_certs: false
-    return_content: true
-  register: redfish_systems_list
-
-- name: "{{ node_name }} – Extract system URI"
+- name: "{{ node_name }} – Set system URI from UUID"
   ansible.builtin.set_fact:
-    node_system_uri: >-
-      {{
-        redfish_systems_list.json['Members']
-        | map(attribute='@odata.id')
-        | select('search', node_redfish_system_id)
-        | first
-      }}
+    node_system_uri: "/redfish/v1/Systems/{{ node_redfish_system_id }}"
 
 - name: "{{ node_name }} – Retrieve system details"
   ansible.builtin.uri:
@@ -44,60 +25,7 @@
   ansible.builtin.debug:
     msg: "Power State: {{ node_system_info.json.PowerState }}"
 
-# --- Virtual Media: Insert agent ISO ---
-- name: "{{ node_name }} – Insert virtual media ISO"
-  ansible.builtin.uri:
-    url: "{{ sushy_protocol }}://{{ node_bmc_address }}{{ node_system_uri }}/VirtualMedia/Cd/Actions/VirtualMedia.InsertMedia"
-    method: POST
-    user: "{{ redfish_username }}"
-    password: "{{ redfish_password }}"
-    force_basic_auth: true
-    validate_certs: false
-    body_format: json
-    body:
-      Image: "file://{{ agent_iso_output }}"
-      Inserted: true
-      WriteProtected: true
-    status_code: [200, 204]
-  ignore_errors: true
-
-# --- Set boot override to CD-ROM ---
-- name: "{{ node_name }} – Set boot source to VirtualMedia (CD)"
-  ansible.builtin.uri:
-    url: "{{ sushy_protocol }}://{{ node_bmc_address }}{{ node_system_uri }}"
-    method: PATCH
-    user: "{{ redfish_username }}"
-    password: "{{ redfish_password }}"
-    force_basic_auth: true
-    validate_certs: false
-    body_format: json
-    body:
-      Boot:
-        BootSourceOverrideTarget: "{{ redfish_boot_source_override }}"
-        BootSourceOverrideEnabled: Once
-    status_code: [200, 204]
-
-# --- Power off node (if still on) ---
-- name: "{{ node_name }} – Graceful shutdown (if powered on)"
-  ansible.builtin.uri:
-    url: "{{ sushy_protocol }}://{{ node_bmc_address }}{{ node_system_uri }}/Actions/ComputerSystem.Reset"
-    method: POST
-    user: "{{ redfish_username }}"
-    password: "{{ redfish_password }}"
-    force_basic_auth: true
-    validate_certs: false
-    body_format: json
-    body:
-      ResetType: ForceOff
-    status_code: [200, 204]
-  when: node_system_info.json.PowerState == "On"
-
-- name: "{{ node_name }} – Wait after shutdown"
-  ansible.builtin.pause:
-    seconds: "{{ boot_wait_seconds }}"
-  when: node_system_info.json.PowerState == "On"
-
-# --- Power on node ---
+# --- Power on node if it's off ---
 - name: "{{ node_name }} – Power on via Redfish"
   ansible.builtin.uri:
     url: "{{ sushy_protocol }}://{{ node_bmc_address }}{{ node_system_uri }}/Actions/ComputerSystem.Reset"
@@ -110,7 +38,23 @@
     body:
       ResetType: "On"
     status_code: [200, 204]
+  when: node_system_info.json.PowerState == "Off"
 
-- name: "{{ node_name }} – Successfully booted"
+# --- Reset node if it's already on (to ensure it boots from the fresh ISO) ---
+- name: "{{ node_name }} – Force Reset via Redfish"
+  ansible.builtin.uri:
+    url: "{{ sushy_protocol }}://{{ node_bmc_address }}{{ node_system_uri }}/Actions/ComputerSystem.Reset"
+    method: POST
+    user: "{{ redfish_username }}"
+    password: "{{ redfish_password }}"
+    force_basic_auth: true
+    validate_certs: false
+    body_format: json
+    body:
+      ResetType: "ForceRestart"
+    status_code: [200, 204]
+  when: node_system_info.json.PowerState == "On"
+
+- name: "{{ node_name }} – Successfully triggered boot"
   ansible.builtin.debug:
-    msg: "{{ node_name }} has been booted from the agent ISO via Redfish/Sushy-Tools."
+    msg: "{{ node_name }} is booting from the attached agent ISO."

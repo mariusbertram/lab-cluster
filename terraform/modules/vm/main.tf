@@ -14,18 +14,21 @@ resource "libvirt_volume" "os_disk" {
   name     = "${var.vm_name}-os.qcow2"
   pool     = var.pool_name
   capacity = var.disk_size * 1024 * 1024 * 1024 # GiB → Bytes
+
+
   target = {
     format = {
-      type = "qcow2"
+      type = "raw"
     }
   }
 }
 
 resource "libvirt_domain" "vm" {
-  name   = var.vm_name
-  vcpu   = var.vcpu
-  memory = var.memory
-  type   = "kvm"
+  name        = var.vm_name
+  vcpu        = var.vcpu
+  memory      = var.memory
+  memory_unit = "MiB"
+  type        = "kvm"
 
   cpu = {
     mode = "host-passthrough"
@@ -34,12 +37,23 @@ resource "libvirt_domain" "vm" {
   os = {
     type         = "hvm"
     type_arch    = "x86_64"
+    type_machine = "q35"
+    firmware     = "efi"
     boot_devices = [
       { dev = "cdrom" },
       { dev = "hd" }
     ]
+    loader          = "/usr/share/edk2/ovmf/OVMF_CODE.secboot.fd"
+    loader_readonly = "yes"
+    loader_type     = "pflash"
+    nv_ram = {
+      template = "/usr/share/edk2/ovmf/OVMF_VARS.secboot.fd"
+      nv_ram   = "/var/lib/libvirt/qemu/nvram/uefi-${var.vm_name}.fd"
+    }
   }
-
+  features = {
+    acpi = true
+  }
   devices = {
     disks = concat(
       [
@@ -73,21 +87,32 @@ resource "libvirt_domain" "vm" {
 
     interfaces = [
       {
-        source = {
-          network = {
-            network = var.network_id
+        source = { network = {
+          network = var.network_name
           }
         }
         mac = {
-          address = var.mac_address
-        }
+        address = var.mac_address }
         model = {
           type = "virtio"
         }
-        addresses      = [var.ip_address, var.ipv6_address]
-        wait_for_lease = false
       }
     ]
+
+    graphics = [
+      { spice = {
+        auto_port = true
+        image = {
+          compression = "off"
+        }
+      } }
+    ]
+
+    #video = [
+    #  {
+    #    type = "virtio"
+    #  }
+    #]
 
     consoles = [
       {

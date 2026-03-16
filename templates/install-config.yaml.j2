@@ -38,5 +38,4 @@ platform:
       - {{ ingress_vip_ipv6 }}
 
 pullSecret: '{{ lookup("file", pull_secret_path) }}'
-sshKey: '{{ lookup("file", ssh_public_key_path) }}'
-
+sshKey: '{{ ssh_public_key }}'

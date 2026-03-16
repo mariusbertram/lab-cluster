@@ -8,7 +8,7 @@ This project automates the deployment of an OpenShift 4.x cluster in a homelab e
 **Core Components:**
 *   **Infrastructure Provider:** KVM/libvirt managed via Terraform (`dmacvicar/libvirt`).
 *   **BMC Emulator:** `sushy-tools` is used to provide a Redfish API for libvirt VMs, allowing the OpenShift Agent-Based Installer to perform Bare Metal (Virtual Media) PXE-like booting.
-*   **Networking:** UniFi Dream Machine (UDM). The cluster utilizes VLAN 10.
+*   **Networking:** UniFi Dream Machine (UDM). The cluster utilizes VLAN 13.
 *   **Orchestration:** Ansible, executed exclusively via `ansible-navigator` utilizing an Execution Environment (EE).
 
 ## 2. Tech Stack & Key Conventions
@@ -36,5 +36,5 @@ Interacting with the UniFi Dream Machine requires a split approach due to bugs i
 
 ## 6. Directory Structure Rules
 *   `terraform/`: Contains all HCL code. No hardcoded variables; everything must accept inputs from the generated `terraform.tfvars.json`.
-*   `playbooks/`: Sequentially numbered phases (e.g., `00-infrastructure.yml`, `00.4-unifi-clients.yml`).
+*   `playbooks/`: Sequentially numbered phases (e.g., `00-infrastructure.yml`, `00.4-unifi-clients.yml`, `00.5-dns.yml`).
 *   `inventory/dynamic_inventory.py`: Must maintain the fallback logic to parse `group_vars/all.yml` if the Terraform state or Redfish API is unreachable during the initial run.

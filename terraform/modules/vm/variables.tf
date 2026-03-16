@@ -26,8 +26,8 @@ variable "pool_name" {
   type        = string
 }
 
-variable "network_id" {
-  description = "ID of the libvirt network"
+variable "network_name" {
+  description = "Name of the libvirt network"
   type        = string
 }
 

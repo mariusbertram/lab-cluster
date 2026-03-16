@@ -2,6 +2,10 @@ output "ip_address" {
   value = var.ip_address
 }
 
+output "ipv6_address" {
+  value = var.ipv6_address
+}
+
 output "mac_address" {
   value = var.mac_address
 }
@@ -12,6 +16,6 @@ output "domain_name" {
 }
 
 output "domain_id" {
-  value = libvirt_domain.vm.id
+  description = "UUID of the VM"
+  value       = libvirt_domain.vm.uuid
 }
-

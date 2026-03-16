@@ -1,30 +1,84 @@
 ---
 # =============================================================================
-# Phase 1 – Download OpenShift Installer and oc CLI
+# Phase 1 – Download OpenShift Installer and oc CLI locally
 # =============================================================================
-- name: "Prepare OpenShift Installer"
-  hosts: bastion
-  become: true
+- name: "Prepare OpenShift Installer and CLI (Local)"
+  hosts: localhost
+  connection: local
   tasks:
-    - name: Create installer working directory
+    - name: Create local directories
       ansible.builtin.file:
-        path: "{{ installer_workdir }}"
+        path: "{{ item }}"
         state: directory
         mode: "0755"
+      loop:
+        - "{{ local_workdir }}"
+        - "{{ local_bin_dir }}"
 
-    - name: Download OpenShift Installer
-      ansible.builtin.unarchive:
-        src: "{{ openshift_installer_url }}"
-        dest: /usr/local/bin/
-        remote_src: true
-        creates: /usr/local/bin/openshift-install
+    - name: Check if openshift-install binary exists locally
+      ansible.builtin.stat:
+        path: "{{ local_bin_dir }}/openshift-install"
+      register: ocp_installer_stat
 
-    - name: Download OpenShift CLI (oc)
-      ansible.builtin.unarchive:
-        src: "{{ oc_client_url }}"
-        dest: /usr/local/bin/
-        remote_src: true
-        creates: /usr/local/bin/oc
+    - name: Download and extract OpenShift Installer
+      when: not ocp_installer_stat.stat.exists
+      block:
+        - name: Create temp directory for extraction
+          ansible.builtin.tempfile:
+            state: directory
+            suffix: ocp_installer
+          register: temp_installer_dir
+
+        - name: Download and extract OpenShift Installer
+          ansible.builtin.unarchive:
+            src: "{{ openshift_installer_url }}"
+            dest: "{{ temp_installer_dir.path }}"
+            remote_src: true
+
+        - name: Move openshift-install binary to local bin
+          ansible.builtin.copy:
+            src: "{{ temp_installer_dir.path }}/openshift-install"
+            dest: "{{ local_bin_dir }}/openshift-install"
+            mode: '0755'
+
+        - name: Clean up temp directory
+          ansible.builtin.file:
+            path: "{{ temp_installer_dir.path }}"
+            state: absent
+
+    - name: Check if oc CLI exists locally
+      ansible.builtin.stat:
+        path: "{{ local_bin_dir }}/oc"
+      register: ocp_cli_stat
+
+    - name: Download and extract OpenShift CLI (oc)
+      when: not ocp_cli_stat.stat.exists
+      block:
+        - name: Create temp directory for CLI extraction
+          ansible.builtin.tempfile:
+            state: directory
+            suffix: ocp_cli
+          register: temp_cli_dir
+
+        - name: Download and extract OpenShift CLI (oc)
+          ansible.builtin.unarchive:
+            src: "{{ oc_client_url }}"
+            dest: "{{ temp_cli_dir.path }}"
+            remote_src: true
+
+        - name: Move oc and kubectl binaries to local bin
+          ansible.builtin.copy:
+            src: "{{ temp_cli_dir.path }}/{{ item }}"
+            dest: "{{ local_bin_dir }}/{{ item }}"
+            mode: '0755'
+          loop:
+            - oc
+            - kubectl
+
+        - name: Clean up CLI temp directory
+          ansible.builtin.file:
+            path: "{{ temp_cli_dir.path }}"
+            state: absent
 
     - name: Check if pull secret exists
       ansible.builtin.stat:
@@ -33,5 +87,5 @@
 
     - name: Fail if pull secret is missing
       ansible.builtin.fail:
-        msg: "Pull secret not found at {{ pull_secret_path }}. Please download from console.redhat.com."
+        msg: "Pull secret not found at {{ pull_secret_path }}. Please place it there manually."
       when: not pull_secret_stat.stat.exists

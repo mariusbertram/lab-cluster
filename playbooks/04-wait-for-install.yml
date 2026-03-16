@@ -1,59 +1,26 @@
 ---
 # =============================================================================
-# Phase 4 – Wait for OpenShift installation to complete
+# Phase 4 – Wait for OpenShift Installation to complete (Local)
 # =============================================================================
 - name: "Wait for OpenShift Installation"
-  hosts: bastion
-  become: true
+  hosts: localhost
+  connection: local
+  gather_facts: false
   tasks:
     - name: Wait for bootstrap to complete
       ansible.builtin.command:
-        cmd: >
-          openshift-install agent wait-for bootstrap-complete
-          --dir {{ installer_workdir }}/cluster-config
-          --log-level info
-      register: bootstrap_result
-      changed_when: false
-      # Wait up to 60 minutes for bootstrap
+        cmd: "{{ local_bin_dir }}/openshift-install agent wait-for bootstrap-complete --dir {{ local_workdir }}/cluster-config --log-level debug"
+      environment:
+        PATH: "{{ local_bin_dir }}:{{ ansible_env.PATH }}"
       async: 3600
       poll: 30
+      register: bootstrap_wait
 
-    - name: Display bootstrap status
-      ansible.builtin.debug:
-        msg: "Bootstrap complete!"
-
-    - name: Wait for full installation to complete
+    - name: Wait for install to complete
       ansible.builtin.command:
-        cmd: >
-          openshift-install agent wait-for install-complete
-          --dir {{ installer_workdir }}/cluster-config
-          --log-level info
-      register: install_result
-      changed_when: false
-      # Wait up to 90 minutes for installation
-      async: 5400
+        cmd: "{{ local_bin_dir }}/openshift-install agent wait-for install-complete --dir {{ local_workdir }}/cluster-config --log-level debug"
+      environment:
+        PATH: "{{ local_bin_dir }}:{{ ansible_env.PATH }}"
+      async: 3600
       poll: 30
-
-    - name: Copy kubeconfig
-      ansible.builtin.copy:
-        src: "{{ installer_workdir }}/cluster-config/auth/kubeconfig"
-        dest: "{{ installer_workdir }}/kubeconfig"
-        remote_src: true
-        mode: "0600"
-
-    - name: Read kubeadmin password
-      ansible.builtin.slurp:
-        src: "{{ installer_workdir }}/cluster-config/auth/kubeadmin-password"
-      register: kubeadmin_password
-
-    - name: Display cluster credentials
-      ansible.builtin.debug:
-        msg: |
-          ============================================
-          OpenShift cluster successfully installed!
-          ============================================
-          Console:  https://console-openshift-console.apps.{{ cluster_name }}.{{ base_domain }}
-          API:      https://api.{{ cluster_name }}.{{ base_domain }}:6443
-          User:     kubeadmin
-          Password: {{ kubeadmin_password.content | b64decode }}
-          ============================================
+      register: install_wait

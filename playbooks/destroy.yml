@@ -3,17 +3,18 @@
 # LAP-Cluster – Full Cleanup Playbook
 # Reverses all configuration steps (Infrastructure, UniFi, Local Artifacts)
 # =============================================================================
-- name: "LAP-Cluster – Full Cleanup"
+- name: "LAP-Cluster – Prepare Destruction"
   hosts: localhost
   gather_facts: false
-  vars:
-    # Helper to collect all MACs for client cleanup
-    all_macs: "{{ (nodes.masters | map(attribute='mac') | list) + (nodes.workers | map(attribute='mac') | list) }}"
-    # Helper to identify our DNS records
-    domain_suffix: "{{ cluster_name }}.{{ base_domain }}"
-
   tasks:
-    - name: "Phase 1: UniFi Cleanup (DNS & Clients)"
+    - name: "Refresh Inventory to ensure nodes are known"
+      ansible.builtin.meta: refresh_inventory
+
+- name: "LAP-Cluster – UniFi Cleanup"
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: "UniFi Cleanup (DNS & Clients)"
       block:
         - name: Get site information
           ubiquiti.unifi_api.network:
@@ -46,11 +47,11 @@
           loop: "{{ current_dns.data.data }}"
           when: 
             - item.domain is defined
-            - item.domain is search(domain_suffix)
+            - item.domain is search(cluster_name ~ "." ~ base_domain)
           loop_control:
             label: "{{ item.domain }}"
 
-        # --- Client Cleanup (Legacy stamgr via URI) ---
+        # --- Client Cleanup (Legacy stamgr via URI - As per Rule 2) ---
         - name: Forget clients in UniFi
           ansible.builtin.uri:
             url: "{{ unifi_base_url }}/proxy/network/api/s/{{ unifi_site_name | lower }}/cmd/stamgr"
@@ -61,10 +62,10 @@
             validate_certs: "{{ unifi_verify_ssl }}"
             body_format: json
             body:
-              macs: "{{ (nodes.masters | map(attribute='mac') | list) + (nodes.workers | map(attribute='mac') | list) | map('lower') | list }}"
+              macs: "{{ (nodes.masters | map(attribute='mac') | list + nodes.workers | map(attribute='mac') | list) | map('lower') | list }}"
               cmd: "forget-sta"
             status_code: [200]
-          ignore_errors: true # In case some were already deleted
+          ignore_errors: true
 
       module_defaults:
         ubiquiti.unifi_api.network:
@@ -73,31 +74,44 @@
           validate_certs: "{{ unifi_verify_ssl }}"
       tags: unifi_cleanup
 
-    - name: "Phase 2: Terraform Destroy"
-      block:
-        - name: Terraform Destroy
-          ansible.builtin.command:
-            cmd: terraform destroy -auto-approve
-            chdir: "{{ playbook_dir }}/../terraform"
-          register: tf_destroy
-          changed_when: "'Destroy complete!' in tf_destroy.stdout"
-      tags: terraform_cleanup
+- name: "LAP-Cluster – Pre-Terraform ISO Cleanup"
+  hosts: bastion
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Remove per-node ISOs on KVM host (Required before Terraform deletes the pool)
+      ansible.builtin.file:
+        path: "{{ storage_pool_path }}/agent-{{ item.name }}.iso"
+        state: absent
+      loop: "{{ nodes.masters + nodes.workers }}"
+      loop_control:
+        label: "agent-{{ item.name }}.iso"
+  tags: terraform_cleanup
 
-    - name: "Phase 3: Local Artifact Cleanup"
-      block:
-        - name: Remove generated ISO
-          ansible.builtin.file:
-            path: "{{ agent_iso_output }}"
-            state: absent
+- name: "LAP-Cluster – Terraform Destroy"
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Terraform Destroy
+      ansible.builtin.command:
+        cmd: terraform destroy -auto-approve
+        chdir: "{{ playbook_dir }}/../terraform"
+      register: tf_destroy
+      changed_when: "'Destroy complete!' in tf_destroy.stdout"
+  tags: terraform_cleanup
 
-        - name: Remove Terraform vars file
-          ansible.builtin.file:
-            path: "{{ playbook_dir }}/../terraform/terraform.tfvars.json"
-            state: absent
+- name: "LAP-Cluster – Local Artifact Cleanup"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Remove local cluster config directory
+      ansible.builtin.file:
+        path: "{{ local_workdir }}/cluster-config"
+        state: absent
 
-        - name: Remove OCP installer workdir (optional cleanup)
-          ansible.builtin.file:
-            path: "{{ installer_workdir }}/cluster-config"
-            state: absent
-          become: true # installer files are often root-owned
-      tags: local_cleanup
+    - name: Remove Terraform vars file
+      ansible.builtin.file:
+        path: "{{ playbook_dir }}/../terraform/terraform.tfvars.json"
+        state: absent
+  tags: local_cleanup
