@@ -11,6 +11,12 @@ hosts:
     role: {{ node.role }}
     rootDeviceHints:
       deviceName: /dev/vda
+    bmc:
+      address: "redfish-virtualmedia://{{ sushy_host }}:{{ sushy_port }}/redfish/v1/Systems/{{ node.hostname }}"
+      username: {{ redfish_username }}
+      password: {{ redfish_password }}
+      disableCertificateVerification: true
+    bootMACAddress: {{ node.mac }}
     interfaces:
       - name: enp1s0
         macAddress: {{ node.mac }}
