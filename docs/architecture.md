@@ -48,8 +48,8 @@
 Sushy-Tools emulates a Redfish BMC interface for libvirt VMs:
 
 - **List systems**: `GET /redfish/v1/Systems/`
-- **Get VM info**: `GET /redfish/v1/Systems/{vm-name}`
-- **Virtual Media**: `POST /redfish/v1/Systems/{vm-name}/VirtualMedia/Cd/Actions/VirtualMedia.InsertMedia`
-- **Power Control**: `POST /redfish/v1/Systems/{vm-name}/Actions/ComputerSystem.Reset`
+- **Get VM info**: `GET /redfish/v1/Systems/{vm-uuid}`
+- **Virtual Media**: `POST /redfish/v1/Systems/{vm-uuid}/VirtualMedia/Cd/Actions/VirtualMedia.InsertMedia`
+- **Power Control**: `POST /redfish/v1/Systems/{vm-uuid}/Actions/ComputerSystem.Reset`
 
 This allows Ansible to treat the VMs like real bare-metal servers.

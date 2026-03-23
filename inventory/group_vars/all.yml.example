@@ -18,6 +18,7 @@ agent_iso_path: "/var/lib/libvirt/images/agent.x86_64.iso"
 cluster_name: "ocp"
 base_domain: "lab.brtrm.dev"
 ocp_version: "4.21.4"
+cluster_flavor: "standard" # Options: standard, compact, sno
 ocp_release_image: "quay.io/openshift-release-dev/ocp-release:{{ ocp_version }}-x86_64"
 
 # ---------- Network ----------

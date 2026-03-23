@@ -38,8 +38,10 @@ This repository provisions an OpenShift cluster in a homelab environment:
 
 - **Single Entry Point**: The entire infrastructure (Terraform) and OpenShift deployment (Ansible) are orchestrated through a single `ansible-navigator` command.
 - **Single Source of Truth**: All variables (IPs, MACs, Cluster settings) are defined centrally in `inventory/group_vars/all.yml`.
+- **Cluster Flavors**: Supports `standard` (3 Masters, 3+ Workers), `compact` (3 Masters, 0 Workers), and `sno` (Single Node OpenShift) via the `cluster_flavor` variable.
 - **IPv4/IPv6 Dual-Stack**: Full support for IPv4 and IPv6 ULA (e.g., `fd60::/64`) across the Libvirt network, OpenShift nodes, and DNS records.
 - **UniFi Integration**: Automatically creates static client mappings (bypassing the GUI to set Fixed IPs and VLAN Overrides via legacy proxy endpoints) and idempotent DNS records (A and AAAA).
+- **Redfish BMC Emulation**: Uses `sushy-tools` to emulate Redfish. VM UUIDs are used as System IDs to ensure reliable identification by the OpenShift Agent-Based Installer.
 - **Automated Teardown**: A dedicated `destroy.yml` playbook cleans up the Libvirt VMs, removes the UniFi clients and DNS entries, and deletes local installation artifacts.
 
 ## Prerequisites

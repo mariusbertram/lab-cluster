@@ -28,8 +28,8 @@
         method: GET
         path: "/v1/sites/{{ unifi_site_id }}/dns/policies"
         query:
-          filter: "and(domain.eq('{{ item.name }}.{{ cluster_name }}.{{ base_domain }}'),type.eq('A_RECORD'))"
-      loop: "{{ nodes.masters }}"
+          filter: "and(domain.eq('{{ item.hostname }}.{{ cluster_name }}.{{ base_domain }}'),type.eq('A_RECORD'))"
+      loop: "{{ master_nodes }}"
       register: master_a_checks
 
     - name: Create A records for master nodes if missing
@@ -39,21 +39,21 @@
         body:
           type: "A_RECORD"
           enabled: true
-          domain: "{{ item.item.name }}.{{ cluster_name }}.{{ base_domain }}"
+          domain: "{{ item.item.hostname }}.{{ cluster_name }}.{{ base_domain }}"
           ipv4Address: "{{ item.item.ip }}"
           ttlSeconds: 3600
       loop: "{{ master_a_checks.results }}"
       when: item.data.totalCount == 0
       loop_control:
-        label: "{{ item.item.name }}"
+        label: "{{ item.item.hostname }}"
 
     - name: Check existing AAAA records for master nodes
       ubiquiti.unifi_api.network:
         method: GET
         path: "/v1/sites/{{ unifi_site_id }}/dns/policies"
         query:
-          filter: "and(domain.eq('{{ item.name }}.{{ cluster_name }}.{{ base_domain }}'),type.eq('AAAA_RECORD'))"
-      loop: "{{ nodes.masters }}"
+          filter: "and(domain.eq('{{ item.hostname }}.{{ cluster_name }}.{{ base_domain }}'),type.eq('AAAA_RECORD'))"
+      loop: "{{ master_nodes }}"
       register: master_aaaa_checks
 
     - name: Create AAAA records for master nodes if missing
@@ -63,13 +63,13 @@
         body:
           type: "AAAA_RECORD"
           enabled: true
-          domain: "{{ item.item.name }}.{{ cluster_name }}.{{ base_domain }}"
+          domain: "{{ item.item.hostname }}.{{ cluster_name }}.{{ base_domain }}"
           ipv6Address: "{{ item.item.ipv6 }}"
           ttlSeconds: 3600
       loop: "{{ master_aaaa_checks.results }}"
       when: item.data.totalCount == 0
       loop_control:
-        label: "{{ item.item.name }}"
+        label: "{{ item.item.hostname }}"
 
     # --- Worker Nodes ---
     - name: Check existing A records for worker nodes
@@ -77,8 +77,8 @@
         method: GET
         path: "/v1/sites/{{ unifi_site_id }}/dns/policies"
         query:
-          filter: "and(domain.eq('{{ item.name }}.{{ cluster_name }}.{{ base_domain }}'),type.eq('A_RECORD'))"
-      loop: "{{ nodes.workers }}"
+          filter: "and(domain.eq('{{ item.hostname }}.{{ cluster_name }}.{{ base_domain }}'),type.eq('A_RECORD'))"
+      loop: "{{ worker_nodes }}"
       register: worker_a_checks
 
     - name: Create A records for worker nodes if missing
@@ -88,21 +88,21 @@
         body:
           type: "A_RECORD"
           enabled: true
-          domain: "{{ item.item.name }}.{{ cluster_name }}.{{ base_domain }}"
+          domain: "{{ item.item.hostname }}.{{ cluster_name }}.{{ base_domain }}"
           ipv4Address: "{{ item.item.ip }}"
           ttlSeconds: 3600
       loop: "{{ worker_a_checks.results }}"
       when: item.data.totalCount == 0
       loop_control:
-        label: "{{ item.item.name }}"
+        label: "{{ item.item.hostname }}"
 
     - name: Check existing AAAA records for worker nodes
       ubiquiti.unifi_api.network:
         method: GET
         path: "/v1/sites/{{ unifi_site_id }}/dns/policies"
         query:
-          filter: "and(domain.eq('{{ item.name }}.{{ cluster_name }}.{{ base_domain }}'),type.eq('AAAA_RECORD'))"
-      loop: "{{ nodes.workers }}"
+          filter: "and(domain.eq('{{ item.hostname }}.{{ cluster_name }}.{{ base_domain }}'),type.eq('AAAA_RECORD'))"
+      loop: "{{ worker_nodes }}"
       register: worker_aaaa_checks
 
     - name: Create AAAA records for worker nodes if missing
@@ -112,13 +112,13 @@
         body:
           type: "AAAA_RECORD"
           enabled: true
-          domain: "{{ item.item.name }}.{{ cluster_name }}.{{ base_domain }}"
+          domain: "{{ item.item.hostname }}.{{ cluster_name }}.{{ base_domain }}"
           ipv6Address: "{{ item.item.ipv6 }}"
           ttlSeconds: 3600
       loop: "{{ worker_aaaa_checks.results }}"
       when: item.data.totalCount == 0
       loop_control:
-        label: "{{ item.item.name }}"
+        label: "{{ item.item.hostname }}"
 
     # --- API VIP ---
     - name: Check existing API VIP A record

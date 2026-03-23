@@ -10,8 +10,9 @@
       ansible.builtin.debug:
         msg: |
           Deploying OpenShift Cluster: {{ cluster_name }}.{{ base_domain }}
-          Masters: {{ nodes.masters | length }}
-          Workers: {{ nodes.workers | length }}
+          Flavor: {{ cluster_flavor | default('standard') }}
+          Masters: {{ master_nodes | length }}
+          Workers: {{ worker_nodes | length }}
           API VIP: {{ api_vip }}
           Ingress VIP: {{ ingress_vip }}
 

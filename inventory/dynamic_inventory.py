@@ -91,6 +91,7 @@ def build_inventory_from_terraform(tf_data):
             "node_role": "master",
         }
         master_nodes.append({
+            "name": name,
             "hostname": name,
             "role": "master",
             "ip": info["ansible_host"],
@@ -112,6 +113,7 @@ def build_inventory_from_terraform(tf_data):
             "node_role": "worker",
         }
         worker_nodes.append({
+            "name": name,
             "hostname": name,
             "role": "worker",
             "ip": info["ansible_host"],
@@ -130,6 +132,9 @@ def build_inventory_from_vars(vars_data):
     hostvars = {}
     master_hosts = []
     worker_hosts = []
+    
+    cluster_flavor = vars_data.get("cluster_flavor", "standard")
+    
     inventory = {
         "_meta": {"hostvars": hostvars},
         "all": {
@@ -151,7 +156,11 @@ def build_inventory_from_vars(vars_data):
     bmc_address = f"{SUSHY_HOST}:{SUSHY_PORT}"
     
     master_nodes_list = []
-    for node in vars_data.get("nodes", {}).get("masters", []):
+    raw_masters = vars_data.get("nodes", {}).get("masters", [])
+    if cluster_flavor == "sno" and raw_masters:
+        raw_masters = [raw_masters[0]]
+        
+    for node in raw_masters:
         name = node["name"]; master_hosts.append(name)
         hostvars[name] = {
             "ansible_host": node["ip"],
@@ -162,6 +171,7 @@ def build_inventory_from_vars(vars_data):
             "node_role": "master"
         }
         master_nodes_list.append({
+            "name": name,
             "hostname": name,
             "role": "master",
             "ip": node["ip"],
@@ -172,7 +182,11 @@ def build_inventory_from_vars(vars_data):
         })
 
     worker_nodes_list = []
-    for node in vars_data.get("nodes", {}).get("workers", []):
+    raw_workers = vars_data.get("nodes", {}).get("workers", [])
+    if cluster_flavor in ("sno", "compact"):
+        raw_workers = []
+        
+    for node in raw_workers:
         name = node["name"]; worker_hosts.append(name)
         hostvars[name] = {
             "ansible_host": node["ip"],
@@ -183,6 +197,7 @@ def build_inventory_from_vars(vars_data):
             "node_role": "worker"
         }
         worker_nodes_list.append({
+            "name": name,
             "hostname": name,
             "role": "worker",
             "ip": node["ip"],

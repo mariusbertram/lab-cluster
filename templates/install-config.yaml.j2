@@ -20,17 +20,13 @@ networking:
 
 compute:
   - name: worker
-    replicas: {{ 0 if cluster_flavor in ['compact', 'sno'] else worker_nodes | length }}
+    replicas: {{ worker_nodes | length }}
     architecture: amd64
 
 controlPlane:
   name: master
-  replicas: {{ 1 if cluster_flavor == 'sno' else 3 }}
+  replicas: {{ master_nodes | length }}
   architecture: amd64
-
-{% if cluster_flavor == 'compact' %}
-mastersSchedulable: true
-{% endif %}
 
 platform:
 {% if cluster_flavor == 'sno' %}
@@ -45,11 +41,11 @@ platform:
       - {{ ingress_vip }}
       - {{ ingress_vip_ipv6 }}
     hosts:
-{% for node in (master_nodes if cluster_flavor == 'compact' else master_nodes + worker_nodes) %}
+{% for node in (master_nodes + worker_nodes) %}
       - name: {{ node.hostname }}
         role: {{ node.role }}
         bmc:
-          address: "redfish-virtualmedia://{{ sushy_host }}:{{ sushy_port }}/redfish/v1/Systems/{{ node.hostname }}"
+          address: "redfish-virtualmedia://{{ sushy_host }}:{{ sushy_port }}/redfish/v1/Systems/{{ node.redfish_system_id }}"
           username: {{ redfish_username }}
           password: {{ redfish_password }}
           disableCertificateVerification: true

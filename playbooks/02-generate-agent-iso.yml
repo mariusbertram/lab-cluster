@@ -29,6 +29,14 @@
         dest: "{{ local_workdir }}/cluster-config/agent-config.yaml"
         mode: "0644"
 
+    - name: "Generate agent manifests locally (All flavors)"
+      ansible.builtin.command:
+        cmd: "{{ local_bin_dir }}/openshift-install agent create cluster-manifests --dir {{ local_workdir }}/cluster-config"
+      environment:
+        PATH: "{{ local_bin_dir }}:{{ ansible_env.PATH }}"
+      register: manifest_result
+      changed_when: manifest_result.rc == 0
+
     - name: Generate agent ISO locally
       ansible.builtin.command:
         cmd: "{{ local_bin_dir }}/openshift-install agent create image --dir {{ local_workdir }}/cluster-config"
@@ -52,11 +60,11 @@
         src: "{{ local_workdir }}/cluster-config/agent.x86_64.iso"
         dest: "{{ storage_pool_path }}/agent-{{ item.name }}.iso"
         mode: "0644"
-      loop: "{{ nodes.masters }}"
+      loop: "{{ master_nodes }}"
 
     - name: Copy ISO for each worker node
       ansible.builtin.copy:
         src: "{{ local_workdir }}/cluster-config/agent.x86_64.iso"
         dest: "{{ storage_pool_path }}/agent-{{ item.name }}.iso"
         mode: "0644"
-      loop: "{{ nodes.workers }}"
+      loop: "{{ worker_nodes }}"

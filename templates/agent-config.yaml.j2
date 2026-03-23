@@ -5,27 +5,18 @@ metadata:
 
 rendezvousIP: {{ master_nodes[0].ip }}
 
-{% if cluster_flavor == 'sno' %}
-  {% set filtered_nodes = [master_nodes[0]] %}
-{% elif cluster_flavor == 'compact' %}
-  {% set filtered_nodes = master_nodes %}
-{% else %}
-  {% set filtered_nodes = master_nodes + worker_nodes %}
-{% endif %}
-
 hosts:
-{% for node in filtered_nodes %}
+{% for node in (master_nodes + worker_nodes) %}
   - hostname: {{ node.hostname }}
     role: {{ node.role }}
     rootDeviceHints:
       deviceName: /dev/vda
 {% if cluster_flavor != 'sno' %}
     bmc:
-      address: "redfish-virtualmedia://{{ sushy_host }}:{{ sushy_port }}/redfish/v1/Systems/{{ node.hostname }}"
+      address: "redfish-virtualmedia://{{ sushy_host }}:{{ sushy_port }}/redfish/v1/Systems/{{ node.redfish_system_id }}"
       username: {{ redfish_username }}
       password: {{ redfish_password }}
       disableCertificateVerification: true
-    bootMACAddress: {{ node.mac }}
 {% endif %}
     interfaces:
       - name: enp1s0
