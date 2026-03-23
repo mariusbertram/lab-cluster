@@ -82,8 +82,8 @@ variable "agent_iso_path" {
 
 # ---------- Node Definitions ----------
 
-variable "masters" {
-  description = "List of master nodes"
+variable "controlplanes" {
+  description = "List of controlplane nodes"
   type = list(object({
     name      = string
     vcpu      = number

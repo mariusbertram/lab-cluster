@@ -62,7 +62,7 @@
             validate_certs: "{{ unifi_verify_ssl }}"
             body_format: json
             body:
-              macs: "{{ (nodes.masters | map(attribute='mac') | list + nodes.workers | map(attribute='mac') | list) | map('lower') | list }}"
+              macs: "{{ (nodes.controlplanes | map(attribute='mac') | list + nodes.workers | map(attribute='mac') | list) | map('lower') | list }}"
               cmd: "forget-sta"
             status_code: [200]
           ignore_errors: true
@@ -83,7 +83,7 @@
       ansible.builtin.file:
         path: "{{ storage_pool_path }}/agent-{{ item.name }}.iso"
         state: absent
-      loop: "{{ nodes.masters + nodes.workers }}"
+      loop: "{{ nodes.controlplanes + nodes.workers }}"
       loop_control:
         label: "agent-{{ item.name }}.iso"
   tags: terraform_cleanup

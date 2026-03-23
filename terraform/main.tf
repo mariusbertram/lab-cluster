@@ -15,11 +15,11 @@ resource "libvirt_pool" "ocp_pool" {
   }
 }
 
-# ---------- Master Nodes ----------
+# ---------- Controlplane Nodes ----------
 
-module "masters" {
+module "controlplanes" {
   source   = "./modules/vm"
-  for_each = { for m in var.masters : m.name => m }
+  for_each = { for m in var.controlplanes : m.name => m }
 
   vm_name       = each.value.name
   vcpu          = each.value.vcpu

@@ -25,7 +25,7 @@ compute:
 
 controlPlane:
   name: master
-  replicas: {{ master_nodes | length }}
+  replicas: {{ controlplane_nodes | length }}
   architecture: amd64
 
 platform:
@@ -41,7 +41,7 @@ platform:
       - {{ ingress_vip }}
       - {{ ingress_vip_ipv6 }}
     hosts:
-{% for node in (master_nodes + worker_nodes) %}
+{% for node in (controlplane_nodes + worker_nodes) %}
       - name: {{ node.hostname }}
         role: {{ node.role }}
         bmc:

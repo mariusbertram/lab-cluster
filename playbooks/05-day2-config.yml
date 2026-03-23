@@ -3,10 +3,12 @@
 # Phase 5 – Day-2 configuration of the OpenShift cluster
 # =============================================================================
 - name: "Day-2 Configuration"
-  hosts: bastion
-  become: true
+  hosts: localhost
+  connection: local
+  gather_facts: false
   environment:
-    KUBECONFIG: "{{ installer_workdir }}/kubeconfig"
+    KUBECONFIG: "{{ local_workdir }}/cluster-config/auth/kubeconfig"
+    PATH: "{{ local_bin_dir }}:{{ ansible_env.PATH }}"
   roles:
     - role: day2_config
 

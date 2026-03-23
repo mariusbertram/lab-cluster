@@ -13,9 +13,10 @@ This repository provisions an OpenShift cluster in a homelab environment:
 ┌──────────────────────────────────────────────────────┐
 │  KVM Host (libvirt)                                  │
 │                                                      │
-│  ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐         │
-│  │master-0│ │master-1│ │master-2│ │worker-0│  ...    │
-│  └────────┘ └────────┘ └────────┘ └────────┘         │
+┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌────────┐         │
+│controlplane-0│ │controlplane-1│ │controlplane-2│ │worker-0│  ...    │
+└──────────────┘ └──────────────┘ └──────────────┘ └────────┘         │
+
 │                                                      │
 │  Sushy-Tools (Redfish BMC Emulator)  :8000           │
 │  Terraform libvirt provider                          │

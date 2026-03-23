@@ -35,7 +35,7 @@
             "ingress_vip_ipv6": "{{ ingress_vip_ipv6 }}",
             "storage_pool_path": "{{ storage_pool_path }}",
             "agent_iso_path": "{{ agent_iso_path }}",
-            "masters": {{ ([nodes.masters[0]] if cluster_flavor == 'sno' else nodes.masters) | to_json }},
+            "controlplanes": {{ ([nodes.controlplanes[0]] if cluster_flavor == 'sno' else nodes.controlplanes) | to_json }},
             "workers": {{ ([] if cluster_flavor in ['compact', 'sno'] else nodes.workers) | to_json }}
           }
         mode: '0644'

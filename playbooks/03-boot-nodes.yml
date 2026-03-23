@@ -8,7 +8,7 @@
   tasks:
     - name: Merge all cluster nodes
       ansible.builtin.set_fact:
-        all_nodes: "{{ master_nodes + worker_nodes }}"
+        all_nodes: "{{ controlplane_nodes + worker_nodes }}"
 
     # --- Redfish: Discover VM UUIDs dynamically via Sushy-Tools ---
     - name: Query Redfish systems (Sushy-Tools)

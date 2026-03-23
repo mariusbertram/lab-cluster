@@ -20,8 +20,18 @@
         path: "{{ local_bin_dir }}/openshift-install"
       register: ocp_installer_stat
 
+    - name: Get current openshift-install version
+      ansible.builtin.command:
+        cmd: "{{ local_bin_dir }}/openshift-install version"
+      register: current_installer_version_raw
+      failed_when: false
+      changed_when: false
+      when: ocp_installer_stat.stat.exists
+
     - name: Download and extract OpenShift Installer
-      when: not ocp_installer_stat.stat.exists
+      when: >
+        not ocp_installer_stat.stat.exists or
+        (current_installer_version_raw.stdout is defined and ocp_version not in current_installer_version_raw.stdout)
       block:
         - name: Create temp directory for extraction
           ansible.builtin.tempfile:
@@ -51,8 +61,18 @@
         path: "{{ local_bin_dir }}/oc"
       register: ocp_cli_stat
 
+    - name: Get current oc version
+      ansible.builtin.command:
+        cmd: "{{ local_bin_dir }}/oc version --client"
+      register: current_oc_version_raw
+      failed_when: false
+      changed_when: false
+      when: ocp_cli_stat.stat.exists
+
     - name: Download and extract OpenShift CLI (oc)
-      when: not ocp_cli_stat.stat.exists
+      when: >
+        not ocp_cli_stat.stat.exists or
+        (current_oc_version_raw.stdout is defined and ocp_version not in current_oc_version_raw.stdout)
       block:
         - name: Create temp directory for CLI extraction
           ansible.builtin.tempfile:
@@ -87,5 +107,5 @@
 
     - name: Fail if pull secret is missing
       ansible.builtin.fail:
-        msg: "Pull secret not found at {{ pull_secret_path }}. Please place it there manually."
+        msg: "Pull secret not found at {{ pull_secret_path.  Please place it there manually."
       when: not pull_secret_stat.stat.exists

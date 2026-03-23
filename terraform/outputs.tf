@@ -2,9 +2,9 @@
 # Outputs – consumed by Ansible
 # -----------------------------------------------------------------------------
 
-output "master_ips" {
-  description = "IP addresses of the master nodes"
-  value       = { for k, m in module.masters : k => m.ip_address }
+output "controlplane_ips" {
+  description = "IP addresses of the controlplane nodes"
+  value       = { for k, m in module.controlplanes : k => m.ip_address }
 }
 
 output "worker_ips" {
@@ -12,9 +12,9 @@ output "worker_ips" {
   value       = { for k, w in module.workers : k => w.ip_address }
 }
 
-output "master_macs" {
-  description = "MAC addresses of the master nodes"
-  value       = { for k, m in module.masters : k => m.mac_address }
+output "controlplane_macs" {
+  description = "MAC addresses of the controlplane nodes"
+  value       = { for k, m in module.controlplanes : k => m.mac_address }
 }
 
 output "worker_macs" {
@@ -22,9 +22,9 @@ output "worker_macs" {
   value       = { for k, w in module.workers : k => w.mac_address }
 }
 
-output "master_domain_names" {
-  description = "Libvirt domain names of the master VMs (for Sushy-Tools/Redfish)"
-  value       = { for k, m in module.masters : k => m.domain_name }
+output "controlplane_domain_names" {
+  description = "Libvirt domain names of the controlplane VMs (for Sushy-Tools/Redfish)"
+  value       = { for k, m in module.controlplanes : k => m.domain_name }
 }
 
 output "worker_domain_names" {
@@ -58,12 +58,12 @@ output "ansible_inventory" {
     network_ipv6_cidr = "${var.network_ipv6_address}/${var.network_ipv6_prefix}"
     kvm_host          = var.libvirt_uri
 
-    masters = { for k, v in module.masters : k => {
+    controlplanes = { for k, v in module.controlplanes : k => {
       ansible_host      = v.ip_address
       mac               = v.mac_address
       ipv6              = v.ipv6_address
       redfish_system_id = v.domain_id
-      role              = "master"
+      role              = "controlplane"
     } }
 
     workers = { for k, v in module.workers : k => {

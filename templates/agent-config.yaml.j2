@@ -3,10 +3,10 @@ apiVersion: v1beta1
 metadata:
   name: {{ cluster_name }}
 
-rendezvousIP: {{ master_nodes[0].ip }}
+rendezvousIP: {{ controlplane_nodes[0].ip }}
 
 hosts:
-{% for node in (master_nodes + worker_nodes) %}
+{% for node in (controlplane_nodes + worker_nodes) %}
   - hostname: {{ node.hostname }}
     role: {{ node.role }}
     rootDeviceHints:

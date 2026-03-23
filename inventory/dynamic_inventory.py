@@ -46,7 +46,7 @@ def empty_inventory():
 
 def build_inventory_from_terraform(tf_data):
     hostvars = {}
-    master_hosts = []
+    controlplane_hosts = []
     worker_hosts = []
 
     all_vars = GLOBAL_VARS.copy()
@@ -61,14 +61,14 @@ def build_inventory_from_terraform(tf_data):
     inventory = {
         "_meta": {"hostvars": hostvars},
         "all": {
-            "children": ["kvm_host", "bastion", "masters", "workers", "cluster"],
+            "children": ["kvm_host", "bastion", "controlplanes", "workers", "cluster"],
             "vars": all_vars,
         },
         "kvm_host": {"hosts": ["hypervisor"]},
         "bastion": {"hosts": ["hypervisor"]},
-        "masters": {"hosts": master_hosts},
+        "controlplanes": {"hosts": controlplane_hosts},
         "workers": {"hosts": worker_hosts},
-        "cluster": {"children": ["masters", "workers"]},
+        "cluster": {"children": ["controlplanes", "workers"]},
     }
 
     hostvars["localhost"] = {"ansible_connection": "local"}
@@ -79,9 +79,9 @@ def build_inventory_from_terraform(tf_data):
     }
 
     bmc_address = f"{SUSHY_HOST}:{SUSHY_PORT}"
-    master_nodes = []
-    for name, info in tf_data.get("masters", {}).items():
-        master_hosts.append(name)
+    controlplane_nodes = []
+    for name, info in tf_data.get("controlplanes", {}).items():
+        controlplane_hosts.append(name)
         hostvars[name] = {
             "ansible_host": info["ansible_host"],
             "mac": info["mac"],
@@ -90,7 +90,7 @@ def build_inventory_from_terraform(tf_data):
             "redfish_system_id": info["redfish_system_id"],
             "node_role": "master",
         }
-        master_nodes.append({
+        controlplane_nodes.append({
             "name": name,
             "hostname": name,
             "role": "master",
@@ -123,14 +123,14 @@ def build_inventory_from_terraform(tf_data):
             "redfish_system_id": info["redfish_system_id"]
         })
 
-    inventory["all"]["vars"]["master_nodes"] = master_nodes
+    inventory["all"]["vars"]["controlplane_nodes"] = controlplane_nodes
     inventory["all"]["vars"]["worker_nodes"] = worker_nodes
     return inventory
 
 
 def build_inventory_from_vars(vars_data):
     hostvars = {}
-    master_hosts = []
+    controlplane_hosts = []
     worker_hosts = []
     
     cluster_flavor = vars_data.get("cluster_flavor", "standard")
@@ -138,14 +138,14 @@ def build_inventory_from_vars(vars_data):
     inventory = {
         "_meta": {"hostvars": hostvars},
         "all": {
-            "children": ["kvm_host", "bastion", "masters", "workers", "cluster"],
+            "children": ["kvm_host", "bastion", "controlplanes", "workers", "cluster"],
             "vars": vars_data,
         },
         "kvm_host": {"hosts": ["hypervisor"]},
         "bastion": {"hosts": ["hypervisor"]},
-        "masters": {"hosts": master_hosts},
+        "controlplanes": {"hosts": controlplane_hosts},
         "workers": {"hosts": worker_hosts},
-        "cluster": {"children": ["masters", "workers"]},
+        "cluster": {"children": ["controlplanes", "workers"]},
     }
     hostvars["localhost"] = {"ansible_connection": "local"}
     hostvars["hypervisor"] = {
@@ -155,13 +155,13 @@ def build_inventory_from_vars(vars_data):
     }
     bmc_address = f"{SUSHY_HOST}:{SUSHY_PORT}"
     
-    master_nodes_list = []
-    raw_masters = vars_data.get("nodes", {}).get("masters", [])
-    if cluster_flavor == "sno" and raw_masters:
-        raw_masters = [raw_masters[0]]
+    controlplane_nodes_list = []
+    raw_controlplanes = vars_data.get("nodes", {}).get("controlplanes", [])
+    if cluster_flavor == "sno" and raw_controlplanes:
+        raw_controlplanes = [raw_controlplanes[0]]
         
-    for node in raw_masters:
-        name = node["name"]; master_hosts.append(name)
+    for node in raw_controlplanes:
+        name = node["name"]; controlplane_hosts.append(name)
         hostvars[name] = {
             "ansible_host": node["ip"],
             "mac": node["mac"],
@@ -170,7 +170,7 @@ def build_inventory_from_vars(vars_data):
             "redfish_system_id": name,
             "node_role": "master"
         }
-        master_nodes_list.append({
+        controlplane_nodes_list.append({
             "name": name,
             "hostname": name,
             "role": "master",
@@ -207,7 +207,7 @@ def build_inventory_from_vars(vars_data):
             "redfish_system_id": name
         })
 
-    inventory["all"]["vars"]["master_nodes"] = master_nodes_list
+    inventory["all"]["vars"]["controlplane_nodes"] = controlplane_nodes_list
     inventory["all"]["vars"]["worker_nodes"] = worker_nodes_list
     return inventory
 
