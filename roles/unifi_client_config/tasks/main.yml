@@ -48,7 +48,7 @@
 
     - name: Combine all nodes
       ansible.builtin.set_fact:
-        all_cluster_nodes: "{{ master_nodes + worker_nodes }}"
+        all_cluster_nodes: "{{ controlplane_nodes + worker_nodes }}"
 
     - name: Register and Update Clients
       ansible.builtin.include_tasks: upsert_client.yml

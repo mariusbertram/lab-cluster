@@ -1,16 +1,46 @@
 ---
 # =============================================================================
-# redfish_boot – Boots a VM via the Sushy-Tools Redfish API
-#
-# Simplified version: ISO is already attached via Terraform.
-# Just ensures the node is powered on.
+# redfish_boot – Power-On/Reset and Virtual Media via Redfish
 # =============================================================================
 
-- name: "{{ node_name }} – Set system URI from UUID"
+- name: "{{ node_name }} – Set system URI"
   ansible.builtin.set_fact:
     node_system_uri: "/redfish/v1/Systems/{{ node_redfish_system_id }}"
 
-- name: "{{ node_name }} – Retrieve system details"
+- name: "{{ node_name }} – Set one-time boot to CD-ROM"
+  ansible.builtin.uri:
+    url: "{{ sushy_protocol }}://{{ node_bmc_address }}{{ node_system_uri }}"
+    method: PATCH
+    user: "{{ redfish_username }}"
+    password: "{{ redfish_password }}"
+    force_basic_auth: true
+    validate_certs: false
+    body_format: json
+    body:
+      Boot:
+        BootSourceOverrideTarget: "Cd"
+        BootSourceOverrideEnabled: "Once"
+    status_code: [200, 204, 400, 500] 
+  ignore_errors: true
+  when: not (eject_iso | default(false) | bool)
+
+- name: "{{ node_name }} – Insert Virtual Media (ISO)"
+  ansible.builtin.uri:
+    url: "{{ sushy_protocol }}://{{ node_bmc_address }}{{ node_system_uri }}/VirtualMedia/Cd/Actions/VirtualMedia.InsertMedia"
+    method: POST
+    user: "{{ redfish_username }}"
+    password: "{{ redfish_password }}"
+    force_basic_auth: true
+    validate_certs: false
+    body_format: json
+    body:
+      Image: "{{ boot_iso_url }}"
+    status_code: [200, 204]
+  when: 
+    - not (eject_iso | default(false) | bool)
+    - boot_iso_url is defined and boot_iso_url != ""
+
+- name: "{{ node_name }} – Retrieve current power state"
   ansible.builtin.uri:
     url: "{{ sushy_protocol }}://{{ node_bmc_address }}{{ node_system_uri }}"
     method: GET
@@ -18,15 +48,10 @@
     password: "{{ redfish_password }}"
     force_basic_auth: true
     validate_certs: false
-    return_content: true
-  register: node_system_info
+  register: node_status
+  when: not (eject_iso | default(false) | bool)
 
-- name: "{{ node_name }} – Current power state"
-  ansible.builtin.debug:
-    msg: "Power State: {{ node_system_info.json.PowerState }}"
-
-# --- Power on node if it's off ---
-- name: "{{ node_name }} – Power on via Redfish"
+- name: "{{ node_name }} – Power on/Reset via Redfish"
   ansible.builtin.uri:
     url: "{{ sushy_protocol }}://{{ node_bmc_address }}{{ node_system_uri }}/Actions/ComputerSystem.Reset"
     method: POST
@@ -36,25 +61,26 @@
     validate_certs: false
     body_format: json
     body:
-      ResetType: "On"
+      ResetType: "{{ (node_status.json.PowerState == 'Off') | ternary('On', 'ForceRestart') }}"
     status_code: [200, 204]
-  when: node_system_info.json.PowerState == "Off"
-
-# --- Reset node if it's already on (to ensure it boots from the fresh ISO) ---
-- name: "{{ node_name }} – Force Reset via Redfish"
-  ansible.builtin.uri:
-    url: "{{ sushy_protocol }}://{{ node_bmc_address }}{{ node_system_uri }}/Actions/ComputerSystem.Reset"
-    method: POST
-    user: "{{ redfish_username }}"
-    password: "{{ redfish_password }}"
-    force_basic_auth: true
-    validate_certs: false
-    body_format: json
-    body:
-      ResetType: "ForceRestart"
-    status_code: [200, 204]
-  when: node_system_info.json.PowerState == "On"
+  when: 
+    - not (eject_iso | default(false) | bool)
+    - node_status is not skipped
 
 - name: "{{ node_name }} – Successfully triggered boot"
   ansible.builtin.debug:
-    msg: "{{ node_name }} is booting from the attached agent ISO."
+    msg: "{{ node_name }} is booting from {{ boot_iso_url }}."
+  when: not (eject_iso | default(false) | bool)
+
+- name: "{{ node_name }} – Eject Virtual Media (ISO)"
+  ansible.builtin.uri:
+    url: "{{ sushy_protocol }}://{{ node_bmc_address }}{{ node_system_uri }}/VirtualMedia/Cd/Actions/VirtualMedia.EjectMedia"
+    method: POST
+    user: "{{ redfish_username }}"
+    password: "{{ redfish_password }}"
+    force_basic_auth: true
+    validate_certs: false
+    body_format: json
+    body: {}
+    status_code: [200, 204]
+  when: eject_iso | default(false) | bool

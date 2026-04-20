@@ -47,13 +47,12 @@ variable "ipv6_address" {
 }
 
 variable "boot_iso_path" {
-  description = "Path to the boot ISO (Agent-Based Installer)"
+  description = "Path to the boot ISO file on the host"
   type        = string
-  default     = ""
 }
 
 variable "start_vm" {
-  description = "Whether to start the VM immediately (false = Sushy boot via Ansible)"
+  description = "Whether to start the VM immediately"
   type        = bool
   default     = false
 }

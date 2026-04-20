@@ -80,6 +80,18 @@ variable "agent_iso_path" {
   default     = ""
 }
 
+variable "cluster_type" {
+  description = "Type of cluster to deploy (openshift or talos)"
+  type        = string
+  default     = "openshift"
+}
+
+variable "talos_version" {
+  description = "Talos version to use"
+  type        = string
+  default     = ""
+}
+
 # ---------- Node Definitions ----------
 
 variable "controlplanes" {

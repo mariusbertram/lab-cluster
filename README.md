@@ -1,78 +1,35 @@
-# LAP-Cluster – OpenShift Homelab on KVM
+# LAP-Cluster – OpenShift & Talos Homelab on KVM
 
-This repository provisions an OpenShift cluster in a homelab environment:
+This repository provisions an OpenShift or Talos Linux cluster in a homelab environment:
 
-- **Terraform** creates VMs on a KVM host (libvirt)
-- **Sushy-Tools** provides a Redfish API to dynamically retrieve VM information (BMC emulation)
-- **Ansible** deploys OpenShift via the **Agent-Based Installer** and configures the cluster (Day-2)
+- **Terraform** creates VMs on a KVM host (libvirt) and manages Talos ISOs dynamically.
+- **Sushy-Tools** provides a Redfish API to dynamically retrieve VM information (BMC emulation).
+- **Ansible** orchestrates the entire deployment, including UniFi networking and cluster bootstrapping.
 - **UniFi Integration** creates DNS records and Client entries (Fixed IP/VLAN Override) on your Dream Machine.
-
-## Architecture
-
-```text
-┌──────────────────────────────────────────────────────┐
-│  KVM Host (libvirt)                                  │
-│                                                      │
-┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌────────┐         │
-│controlplane-0│ │controlplane-1│ │controlplane-2│ │worker-0│  ...    │
-└──────────────┘ └──────────────┘ └──────────────┘ └────────┘         │
-
-│                                                      │
-│  Sushy-Tools (Redfish BMC Emulator)  :8000           │
-│  Terraform libvirt provider                          │
-└───────────────────────┬──────────────────────────────┘
-                        │
-                        ▼
-┌──────────────────────────────────────────────────────┐
-│  UniFi Dream Machine (Network Controller)            │
-│  - VLAN 10 (VM Network)                              │
-│  - Static IPs & MAC Mapping                          │
-│  - DNS A / AAAA Records                              │
-└───────────────────────┬──────────────────────────────┘
-                        │
-         Ansible (Agent-Based Installer)
-                        ▼
-                  OpenShift Cluster
-```
 
 ## Features
 
-- **Single Entry Point**: The entire infrastructure (Terraform) and OpenShift deployment (Ansible) are orchestrated through a single `ansible-navigator` command.
+- **Multi-Cloud-Native**: Supports both **OpenShift** (Agent-Based Installer) and **Talos Linux**.
+- **Single Entry Point**: Infrastructure and cluster deployment are orchestrated through a single `ansible-navigator` command.
 - **Single Source of Truth**: All variables (IPs, MACs, Cluster settings) are defined centrally in `inventory/group_vars/all.yml`.
-- **Cluster Flavors**: Supports `standard` (3 Masters, 3+ Workers), `compact` (3 Masters, 0 Workers), and `sno` (Single Node OpenShift) via the `cluster_flavor` variable.
-- **IPv4/IPv6 Dual-Stack**: Full support for IPv4 and IPv6 ULA (e.g., `fd60::/64`) across the Libvirt network, OpenShift nodes, and DNS records.
-- **UniFi Integration**: Automatically creates static client mappings (bypassing the GUI to set Fixed IPs and VLAN Overrides via legacy proxy endpoints) and idempotent DNS records (A and AAAA).
-- **Redfish BMC Emulation**: Uses `sushy-tools` to emulate Redfish. VM UUIDs are used as System IDs to ensure reliable identification by the OpenShift Agent-Based Installer.
-- **Automated Teardown**: A dedicated `destroy.yml` playbook cleans up the Libvirt VMs, removes the UniFi clients and DNS entries, and deletes local installation artifacts.
-
-## Prerequisites
-
-- KVM host with libvirt, QEMU
-- Terraform >= 1.5
-- Ansible >= 2.15 (using `ansible-navigator` with Podman/Docker)
-- `sushy-tools` installed on the KVM host
-- OpenShift pull secret (`pull-secret.json`)
-- SSH key pair
-- **UniFi Network Application** (Dream Machine Pro/SE/etc.) with an API Token for authentication.
+- **IPv4/IPv6 Dual-Stack**: Full support for IPv4 and IPv6 ULA across all components.
+- **UniFi Integration**: Automatically creates static client mappings and idempotent DNS records.
+- **Redfish BMC Emulation**: Uses `sushy-tools` for Virtual Media boot, treating VMs like bare-metal servers.
 
 ## Quick Start
 
 1. **Prepare Environment**
-   - Install `ansible-navigator` and a container engine (Podman/Docker).
-   - Ensure `sushy-tools` is running on your host (see `scripts/setup-sushy-tools.sh`).
+   - Install `ansible-navigator` and a container engine.
+   - Ensure `sushy-tools` is running on your host.
 
 2. **Adjust Variables & Credentials**
    ```bash
    cp inventory/group_vars/all.yml.example inventory/group_vars/all.yml
-   # Edit variables (IPs, MACs, Pull Secret path, UniFi settings)
-   
-   # Provide your UniFi API token via a .env file (recommended)
-   echo "UBIQUITI_API_TOKEN=your_secret_token_here" > .env
+   # Edit variables (cluster_type, IPs, MACs, Pull Secret, UniFi settings)
    ```
 
 3. **Deploy Cluster**
    ```bash
-   # Load the environment variables and start the deployment
    export $(cat .env | xargs) && ansible-navigator run playbooks/site.yml
    ```
 
@@ -83,26 +40,18 @@ This repository provisions an OpenShift cluster in a homelab environment:
 
 ## Workflow
 
-The entire deployment is orchestrated by Ansible and divided into phases:
-
 1. **Phase 0: Infrastructure (Terraform)**
-   - Generates `terraform.tfvars.json` from Ansible variables.
-   - Provisions libvirt networks (Dual-Stack), storage, and VMs.
+   - Provisions libvirt networks, storage, and VMs.
+   - **Talos**: Automatically fetches the correct ISO via Talos Image Factory and mounts it.
 2. **Phase 0.4: UniFi Client Provisioning**
-   - Registers MAC addresses in UniFi, assigning Fixed IPs and overriding the Virtual Network (VLAN).
+   - Registers MACs in UniFi with Fixed IPs and VLAN Overrides.
 3. **Phase 0.5: DNS Provisioning**
-   - Creates idempotent A and AAAA records for all nodes, the API, and the Ingress wildcard on the UniFi controller.
-4. **Phase 1: Prepare Installer**
-   - Downloads `openshift-install` and `oc` CLI.
-5. **Phase 2: Generate Agent ISO**
-   - Templates `install-config.yaml` and `agent-config.yaml` (Dual-Stack).
-   - Builds the bootable ISO.
-6. **Phase 3: Boot Nodes**
-   - Uses the Redfish API (Sushy-Tools) to mount the ISO and start the VMs via Virtual Media.
-7. **Phase 4: Wait for Installation**
-   - Monitors bootstrap and installation progress.
-8. **Phase 5: Day-2 Configuration**
-   - Post-install tweaks (CSR approval, Operators check, etc.).
+   - Creates A/AAAA records for nodes and API/Ingress VIPs.
+4. **Phase 1-4: Cluster Specific Deployment**
+   - **OpenShift**: Downloads installer, builds Agent ISO, boots nodes, and waits for install.
+   - **Talos**: Generates secrets, boots nodes (using the Terraform-managed ISO), and bootstraps the cluster.
+5. **Phase 5: Day-2 Configuration**
+   - Post-install tweaks and health checks.
 
 ## One Place for Variables
 

@@ -8,24 +8,24 @@
                     │  (Terraform + Ansible)  │
                     └────────────┬────────────┘
                                  │
-                    ┌────────────▼────────────┐
-                    │      KVM Host           │
-                    │                         │
-                    │  ┌──────────────────┐   │
-                    │  │  Sushy-Tools     │   │
-                    │  │  (Redfish API)   │   │
-                    │  │  :8000           │   │
-                    │  └────────┬─────────┘   │
-                    │           │ libvirt     │
-                    │  ┌────────▼─────────┐   │
-                    │  │    VMs (KVM)     │   │
-                    │  │                  │   │
+                    ┌────────────▼─────────────┐
+                    │      KVM Host            │
+                    │                          │
+                    │  ┌──────────────────┐    │
+                    │  │  Sushy-Tools     │    │
+                    │  │  (Redfish API)   │    │
+                    │  │  :8000           │    │
+                    │  └────────┬─────────┘    │
+                    │           │ libvirt      │
+                    │  ┌────────▼──────────┐   │
+                    │  │    VMs (KVM)      │   │
+                    │  │                   │   │
                     │  │controlplane-0(.20)│   │
                     │  │controlplane-1(.21)│   │
                     │  │controlplane-2(.22)│   │
-                    │  │ worker-0  (.30)  │   │
-                    │  └──────────────────┘   │
-                    └─────────────────────────┘
+                    │  │ worker-0  (.30)   │   │
+                    │  └───────────────────┘   │
+                    └──────────────────────────┘
 ```
 
 ## Workflow
@@ -33,15 +33,22 @@
 ### Phase 1: Infrastructure (Terraform)
 1. Create libvirt network with DNS
 2. Create storage pool
-3. Create VMs with OS disks (but do **not** start them)
-4. VMs have the agent ISO mounted as CD-ROM
+3. **Talos**: Fetch ISO via Image Factory and create libvirt volume
+4. Create VMs with OS disks (but do **not** start them)
+5. VMs have the appropriate ISO (central Talos ISO or per-node Agent ISO) mounted as CD-ROM
 
-### Phase 2: OpenShift Deployment (Ansible)
+### Phase 2: Cluster Deployment (Ansible)
+
+#### For OpenShift:
 1. **Prepare installer**: Download `openshift-install` + `oc` CLI
 2. **Generate agent ISO**: Template `install-config.yaml` + `agent-config.yaml` → build ISO
-3. **Boot nodes**: Insert virtual media and start VMs via Sushy-Tools Redfish API
+3. **Boot nodes**: Insert per-node virtual media and start VMs via Sushy-Tools Redfish API
 4. **Wait for installation**: Bootstrap → Install Complete
-5. **Day-2 configuration**: Approve CSRs, verify cluster operators
+
+#### For Talos:
+1. **Generate Secrets**: Use `talosctl` to create cluster secrets
+2. **Boot nodes**: Start VMs via Sushy-Tools Redfish API (central ISO is already mounted by Terraform)
+3. **Bootstrap Cluster**: Run Talos bootstrap via the `siderolabs/talos` Terraform provider
 
 ## Sushy-Tools / Redfish
 

@@ -2,7 +2,7 @@
 # =============================================================================
 # Site Playbook – Full OpenShift Deployment
 # =============================================================================
-- name: "LAP-Cluster – OpenShift Agent-Based Install"
+- name: "LAP-Cluster – Pre-flight checks"
   hosts: localhost
   gather_facts: false
   tasks:
@@ -16,34 +16,100 @@
           API VIP: {{ api_vip }}
           Ingress VIP: {{ ingress_vip }}
 
+    - name: Check if cluster is already ready
+      ansible.builtin.shell:
+        cmd: "{{ local_bin_dir }}/oc get clusterversion --kubeconfig {{ local_workdir }}/cluster-config/auth/kubeconfig"
+      register: cluster_ready_check
+      failed_when: false
+      changed_when: false
+
+    - name: Set cluster readiness fact
+      ansible.builtin.set_fact:
+        cluster_already_ready: "{{ cluster_ready_check.rc == 0 }}"
+
+    - name: Skip installation notice
+      ansible.builtin.debug:
+        msg: "Cluster is already READY. Skipping installation phases and jumping to Day-2 configuration."
+      when: cluster_already_ready
+
 - name: "Phase 0 – Infrastructure Provisioning"
   ansible.builtin.import_playbook: 00-infrastructure.yml
+  when: not hostvars['localhost']['cluster_already_ready']
   tags: infrastructure
 
 - name: "Phase 0.4 – UniFi Client Provisioning"
   ansible.builtin.import_playbook: 00.4-unifi-clients.yml
+  when: not hostvars['localhost']['cluster_already_ready']
   tags: unifi_clients
 
 - name: "Phase 0.5 – DNS Provisioning"
   ansible.builtin.import_playbook: 00.5-dns.yml
+  when: not hostvars['localhost']['cluster_already_ready']
   tags: dns
 
 - name: "Phase 1 – Prepare installer"
   ansible.builtin.import_playbook: 01-prepare-installer.yml
+  when: 
+    - not hostvars['localhost']['cluster_already_ready']
+    - cluster_type == 'openshift'
   tags: prepare
+
+- name: "Phase 1 (Talos) – Prepare Talos"
+  ansible.builtin.import_playbook: 01-prepare-talos.yml
+  when: 
+    - not hostvars['localhost']['cluster_already_ready']
+    - cluster_type == 'talos'
+  tags: prepare_talos
 
 - name: "Phase 2 – Generate agent ISO"
   ansible.builtin.import_playbook: 02-generate-agent-iso.yml
+  when: 
+    - not hostvars['localhost']['cluster_already_ready']
+    - cluster_type == 'openshift'
   tags: iso
 
 - name: "Phase 3 – Boot nodes via Redfish/Sushy"
   ansible.builtin.import_playbook: 03-boot-nodes.yml
+  when: not hostvars['localhost']['cluster_already_ready']
   tags: boot
 
-- name: "Phase 4 – Wait for installation"
+- name: "Phase 4 – Wait for installation (OpenShift)"
   ansible.builtin.import_playbook: 04-wait-for-install.yml
+  when: 
+    - not hostvars['localhost']['cluster_already_ready']
+    - cluster_type == 'openshift'
   tags: wait
 
-- name: "Phase 5 – Day-2 configuration"
+- name: "Phase 4 (Talos) – Bootstrap Cluster"
+  ansible.builtin.import_playbook: 04-bootstrap-talos.yml
+  when: 
+    - not hostvars['localhost']['cluster_already_ready']
+    - cluster_type == 'talos'
+  tags: bootstrap_talos
+
+- name: "Phase 5 – Day-2 configuration (OpenShift)"
   ansible.builtin.import_playbook: 05-day2-config.yml
+  when: cluster_type == 'openshift'
   tags: day2
+
+- name: "Cleanup – Shutdown Temporary HTTP Server"
+  hosts: bastion
+  gather_facts: false
+  tasks:
+    - name: Cleanup temporary HTTP server
+      ansible.builtin.shell: "pkill -f 'python3 -m http.server {{ iso_http_port | default(8080) }}'"
+      ignore_errors: true
+      changed_when: false
+      when: 
+        - not hostvars['localhost']['cluster_already_ready']
+        - cluster_type == 'openshift'
+
+    - name: Remove temporary ISO directory
+      ansible.builtin.file:
+        path: "{{ hostvars[groups['bastion'][0]]['iso_temp_dir'] }}"
+        state: absent
+      when: 
+        - not hostvars['localhost']['cluster_already_ready']
+        - cluster_type == 'openshift'
+        - hostvars[groups['bastion'][0]]['iso_temp_dir'] is defined
+  tags: cleanup_iso

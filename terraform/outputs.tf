@@ -57,6 +57,7 @@ output "ansible_inventory" {
     network_cidr      = "${var.network_address}/${var.network_prefix}"
     network_ipv6_cidr = "${var.network_ipv6_address}/${var.network_ipv6_prefix}"
     kvm_host          = var.libvirt_uri
+    talos_iso_url     = var.cluster_type == "talos" ? data.talos_image_factory_urls.this[0].urls.iso : ""
 
     controlplanes = { for k, v in module.controlplanes : k => {
       ansible_host      = v.ip_address

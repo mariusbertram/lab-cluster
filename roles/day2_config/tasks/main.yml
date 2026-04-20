@@ -16,23 +16,6 @@
   ansible.builtin.debug:
     var: cluster_version.stdout_lines
 
-# --- Approve CSRs (worker nodes) ---
-- name: Approve pending CSRs
-  when: day2_approve_csrs
-  block:
-    - name: List pending CSRs
-      ansible.builtin.shell:
-        cmd: oc get csr -o jsonpath='{.items[?(@.status=={})].metadata.name}'
-      register: pending_csrs
-      changed_when: false
-
-    - name: Approve CSRs
-      ansible.builtin.command:
-        cmd: "oc adm certificate approve {{ item }}"
-      loop: "{{ pending_csrs.stdout.split() }}"
-      when: pending_csrs.stdout | length > 0
-      changed_when: true
-
 # --- Check all nodes ---
 - name: Display all nodes
   ansible.builtin.command:

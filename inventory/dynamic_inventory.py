@@ -56,6 +56,7 @@ def build_inventory_from_terraform(tf_data):
         "api_vip": tf_data.get("api_vip", all_vars.get("api_vip", "")),
         "ingress_vip": tf_data.get("ingress_vip", all_vars.get("ingress_vip", "")),
         "network_cidr": tf_data.get("network_cidr", all_vars.get("cluster_network_cidr", "")),
+        "talos_iso_url": tf_data.get("talos_iso_url", all_vars.get("talos_iso_url", "")),
     })
 
     inventory = {

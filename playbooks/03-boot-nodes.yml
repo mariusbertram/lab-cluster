@@ -4,11 +4,59 @@
 # =============================================================================
 - name: "Boot Nodes via Redfish (Sushy-Tools)"
   hosts: bastion
-  gather_facts: false
+  gather_facts: true
+  vars:
+    # Default port for OpenShift ISO server
+    effective_iso_http_port: "{{ iso_http_port | default(8080) }}"
   tasks:
     - name: Merge all cluster nodes
       ansible.builtin.set_fact:
         all_nodes: "{{ controlplane_nodes + worker_nodes }}"
+
+    # --- OpenShift Specific: Temporary HTTP Server ---
+    - name: Setup temporary HTTP server for OpenShift ISOs
+      block:
+        - name: Determine reachable IP for ISO server
+          ansible.builtin.set_fact:
+            # Use the cluster gateway IP if it exists on this host, otherwise fallback to default IPv4
+            iso_reachable_ip: >-
+              {{
+                ansible_facts.all_ipv4_addresses 
+                | select('match', '^' + (cluster_network_gateway | default('')) | regex_escape + '$') 
+                | first 
+                | default(ansible_default_ipv4.address)
+              }}
+
+        - name: Create temporary directory
+          ansible.builtin.tempfile:
+            state: directory
+            suffix: iso_server
+          register: ocp_temp_iso_dir
+
+        - name: Set temp directory fact for cleanup
+          ansible.builtin.set_fact:
+            iso_temp_dir: "{{ ocp_temp_iso_dir.path }}"
+
+        - name: Link OpenShift ISOs to temp directory
+          ansible.builtin.file:
+            src: "{{ storage_pool_path }}/agent-{{ item.hostname }}.iso"
+            dest: "{{ ocp_temp_iso_dir.path }}/agent-{{ item.hostname }}.iso"
+            state: link
+          loop: "{{ all_nodes }}"
+
+        - name: Start temporary HTTP server
+          ansible.builtin.shell: "nohup python3 -m http.server {{ effective_iso_http_port }} > /tmp/iso_server.log 2>&1 &"
+          args:
+            chdir: "{{ ocp_temp_iso_dir.path }}"
+          async: 10
+          poll: 0
+
+        - name: Wait for HTTP server to be ready
+          ansible.builtin.wait_for:
+            port: "{{ effective_iso_http_port }}"
+            host: "0.0.0.0"
+            timeout: 10
+      when: cluster_type == 'openshift'
 
     # --- Redfish: Discover VM UUIDs dynamically via Sushy-Tools ---
     - name: Query Redfish systems (Sushy-Tools)
@@ -22,10 +70,6 @@
         validate_certs: false
       register: redfish_systems
 
-    - name: Display Redfish system IDs
-      ansible.builtin.debug:
-        var: redfish_systems.json
-
     # --- For each node: Insert virtual media and boot ---
     - name: Boot nodes via Redfish
       ansible.builtin.include_role:
@@ -34,6 +78,12 @@
         node_name: "{{ item.hostname }}"
         node_bmc_address: "{{ item.bmc_address }}"
         node_redfish_system_id: "{{ item.redfish_system_id }}"
+        # For Talos: Use the URL from Terraform (talos_iso_url)
+        # For OpenShift: Use the local HTTP server
+        boot_iso_url: "{{ (cluster_type == 'talos') | ternary(
+                          talos_iso_url,
+                          'http://' + iso_reachable_ip + ':' + effective_iso_http_port|string + '/agent-' + item.hostname + '.iso'
+                        ) }}"
       loop: "{{ all_nodes }}"
       loop_control:
         label: "{{ item.hostname }}"

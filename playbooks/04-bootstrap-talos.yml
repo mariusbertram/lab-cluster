@@ -1,0 +1,158 @@
+---
+# =============================================================================
+# Phase 4 (Talos) – Bootstrap Cluster with Terraform
+# =============================================================================
+- name: "Bootstrap Talos Cluster"
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Ensure Talos directory exists
+      ansible.builtin.file:
+        path: "{{ local_workdir }}/talos"
+        state: directory
+        mode: '0755'
+
+    - name: Generate terraform.tfvars.json for Talos
+      ansible.builtin.copy:
+        dest: "{{ playbook_dir }}/../terraform/talos/terraform.tfvars.json"
+        content: |
+          {
+            "cluster_name": "{{ cluster_name }}",
+            "cluster_endpoint": "https://{{ api_vip }}:6443",
+            "api_vip": "{{ api_vip }}",
+            "api_vip_ipv6": "{{ api_vip_ipv6 }}",
+            "talos_vip_interface": "{{ talos_vip_interface | default('enp1s0') }}",
+            "talos_cni": "{{ talos_cni | default('flannel') }}",
+            "talos_version": "{{ talos_version | default('') }}",
+            "controlplane_nodes": {{ nodes.controlplanes | map(attribute='ip') | list | to_json }},
+            "worker_nodes": {{ nodes.workers | map(attribute='ip') | list | to_json }},
+            "kubeconfig_path": "{{ local_workdir }}/talos/kubeconfig"
+          }
+        mode: '0644'
+
+    - name: Terraform Init (Talos)
+      ansible.builtin.command:
+        cmd: terraform init
+        chdir: "{{ playbook_dir }}/../terraform/talos"
+      register: tf_init
+      changed_when: "'Terraform has been successfully initialized' in tf_init.stdout"
+
+    - name: Terraform Apply (Talos)
+      ansible.builtin.command:
+        cmd: terraform apply -auto-approve
+        chdir: "{{ playbook_dir }}/../terraform/talos"
+      register: tf_talos_apply
+      changed_when: "'Apply complete!' in tf_talos_apply.stdout"
+
+    - name: Get Talos outputs
+      ansible.builtin.command:
+        cmd: terraform output -json
+        chdir: "{{ playbook_dir }}/../terraform/talos"
+      register: tf_outputs
+      changed_when: false
+
+    - name: Set facts from Terraform outputs
+      ansible.builtin.set_fact:
+        talos_config_content: "{{ (tf_outputs.stdout | from_json).talos_config.value }}"
+        kubeconfig_content: "{{ (tf_outputs.stdout | from_json).kubeconfig.value }}"
+
+    - name: Save Talos config locally
+      ansible.builtin.copy:
+        content: "{{ talos_config_content }}"
+        dest: "{{ local_workdir }}/talos/talosconfig"
+        mode: '0600'
+
+    - name: Save Kubeconfig locally
+      ansible.builtin.copy:
+        content: "{{ kubeconfig_content }}"
+        dest: "{{ local_workdir }}/talos/kubeconfig"
+        mode: '0600'
+
+    # --- Post-Bootstrap: Wait for API ---
+    - name: Wait for Kubernetes API to be available
+      ansible.builtin.command:
+        cmd: "{{ local_bin_dir }}/kubectl --kubeconfig {{ local_workdir }}/talos/kubeconfig get nodes"
+      register: kubectl_check
+      until: kubectl_check.rc == 0
+      retries: 30
+      delay: 10
+      changed_when: false
+
+    # --- CNI Installation: Calico ---
+    - name: Install Calico Operator
+      ansible.builtin.command:
+        cmd: "{{ local_bin_dir }}/kubectl --kubeconfig {{ local_workdir }}/talos/kubeconfig create -f https://raw.githubusercontent.com/projectcalico/calico/v3.29.1/manifests/tigera-operator.yaml"
+      when: talos_cni == 'calico'
+      register: calico_operator
+      failed_when: 
+        - calico_operator.rc != 0
+        - "'already exists' not in calico_operator.stderr"
+
+    - name: Install Calico Custom Resources
+      ansible.builtin.shell: |
+        cat <<EOF | {{ local_bin_dir }}/kubectl --kubeconfig {{ local_workdir }}/talos/kubeconfig apply -f -
+        apiVersion: operator.tigera.io/v1
+        kind: Installation
+        metadata:
+          name: default
+        spec:
+          calicoNetwork:
+            ipPools:
+            - blockSize: 26
+              cidr: {{ pod_network }}
+              encapsulation: VXLANCrossSubnet
+              natOutgoing: Enabled
+              nodeSelector: all()
+        ---
+        apiVersion: operator.tigera.io/v1
+        kind: APIServer
+        metadata:
+          name: default
+        spec: {}
+        EOF
+      when: talos_cni == 'calico'
+
+    # --- CNI Installation: Cilium ---
+    - name: Download Cilium CLI
+      ansible.builtin.get_url:
+        url: "https://github.com/cilium/cilium-cli/releases/latest/download/cilium-linux-amd64.tar.gz"
+        dest: "/tmp/cilium-linux-amd64.tar.gz"
+        mode: '0644'
+      when: talos_cni == 'cilium'
+
+    - name: Extract Cilium CLI
+      ansible.builtin.unarchive:
+        src: "/tmp/cilium-linux-amd64.tar.gz"
+        dest: "{{ local_bin_dir }}"
+        remote_src: true
+      when: talos_cni == 'cilium'
+
+    - name: Install Cilium
+      ansible.builtin.command:
+        cmd: "{{ local_bin_dir }}/cilium --kubeconfig {{ local_workdir }}/talos/kubeconfig install --set kubeProxyReplacement=true"
+      when: talos_cni == 'cilium'
+      register: cilium_install
+      failed_when:
+        - cilium_install.rc != 0
+        - "'already installed' not in cilium_install.stderr"
+
+- name: "Eject Virtual Media"
+  hosts: bastion
+  gather_facts: false
+  tasks:
+    - name: Merge all cluster nodes
+      ansible.builtin.set_fact:
+        all_nodes: "{{ controlplane_nodes + worker_nodes }}"
+
+    - name: Eject ISO from all nodes
+      ansible.builtin.include_role:
+        name: redfish_boot
+      vars:
+        node_name: "{{ item.hostname }}"
+        node_bmc_address: "{{ item.bmc_address }}"
+        node_redfish_system_id: "{{ item.redfish_system_id }}"
+        eject_iso: true
+        boot_iso_url: "" # Not needed for eject
+      loop: "{{ all_nodes }}"
+      loop_control:
+        label: "{{ item.hostname }}"

@@ -15,7 +15,6 @@ resource "libvirt_volume" "os_disk" {
   pool     = var.pool_name
   capacity = var.disk_size * 1024 * 1024 * 1024 # GiB → Bytes
 
-
   target = {
     format = {
       type = "raw"
@@ -39,51 +38,42 @@ resource "libvirt_domain" "vm" {
     type_arch    = "x86_64"
     type_machine = "q35"
     firmware     = "efi"
-    boot_devices = [
-      { dev = "cdrom" },
-      { dev = "hd" }
-    ]
+    
     loader          = "/usr/share/edk2/ovmf/OVMF_CODE.secboot.fd"
     loader_readonly = "yes"
     loader_type     = "pflash"
     nv_ram = {
-      template = "/usr/share/edk2/ovmf/OVMF_VARS.secboot.fd"
+      # Use the "clean" VARS template to start in UEFI Setup Mode
+      template = "/usr/share/edk2/ovmf/OVMF_VARS.fd"
       nv_ram   = "/var/lib/libvirt/qemu/nvram/uefi-${var.vm_name}.fd"
     }
   }
+
   features = {
     acpi = true
+    # SMM is required for Secure Boot
+    smm  = {
+      state = "on"
+    }
   }
+
   devices = {
-    disks = concat(
-      [
-        {
-          source = {
-            volume = {
-              pool   = var.pool_name
-              volume = libvirt_volume.os_disk.name
-            }
-          }
-          target = {
-            dev = "vda"
-            bus = "virtio"
+    disks = [
+      {
+        # OS DISK - ALWAYS FIRST
+        source = {
+          volume = {
+            pool   = var.pool_name
+            volume = libvirt_volume.os_disk.name
           }
         }
-      ],
-      var.boot_iso_path != "" ? [
-        {
-          source = {
-            file = {
-              file = var.boot_iso_path
-            }
-          }
-          target = {
-            dev = "sda"
-            bus = "sata"
-          }
+        target = {
+          dev = "vda"
+          bus = "virtio"
         }
-      ] : []
-    )
+        boot_order = "1"
+      }
+    ]
 
     interfaces = [
       {
@@ -96,6 +86,7 @@ resource "libvirt_domain" "vm" {
         model = {
           type = "virtio"
         }
+        boot_order = "2"
       }
     ]
 
@@ -107,12 +98,6 @@ resource "libvirt_domain" "vm" {
         }
       } }
     ]
-
-    #video = [
-    #  {
-    #    type = "virtio"
-    #  }
-    #]
 
     consoles = [
       {

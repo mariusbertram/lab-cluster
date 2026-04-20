@@ -79,25 +79,34 @@
   become: true
   gather_facts: false
   tasks:
-    - name: Remove per-node ISOs on KVM host (Required before Terraform deletes the pool)
+    - name: Remove per-node OpenShift ISOs on KVM host
       ansible.builtin.file:
         path: "{{ storage_pool_path }}/agent-{{ item.name }}.iso"
         state: absent
       loop: "{{ nodes.controlplanes + nodes.workers }}"
       loop_control:
         label: "agent-{{ item.name }}.iso"
+      when: cluster_type == 'openshift'
   tags: terraform_cleanup
 
 - name: "LAP-Cluster – Terraform Destroy"
   hosts: localhost
   gather_facts: false
   tasks:
-    - name: Terraform Destroy
+    - name: Terraform Destroy (Infrastructure)
       ansible.builtin.command:
         cmd: terraform destroy -auto-approve
         chdir: "{{ playbook_dir }}/../terraform"
       register: tf_destroy
       changed_when: "'Destroy complete!' in tf_destroy.stdout"
+
+    - name: Terraform Destroy (Talos Bootstrap)
+      ansible.builtin.command:
+        cmd: terraform destroy -auto-approve
+        chdir: "{{ playbook_dir }}/../terraform/talos"
+      register: tf_talos_destroy
+      when: cluster_type == 'talos'
+      changed_when: "'Destroy complete!' in tf_talos_destroy.stdout"
   tags: terraform_cleanup
 
 - name: "LAP-Cluster – Local Artifact Cleanup"
@@ -105,13 +114,21 @@
   connection: local
   gather_facts: false
   tasks:
-    - name: Remove local cluster config directory
+    - name: Remove OpenShift cluster config directory
       ansible.builtin.file:
         path: "{{ local_workdir }}/cluster-config"
         state: absent
 
-    - name: Remove Terraform vars file
+    - name: Remove Talos directory
       ansible.builtin.file:
-        path: "{{ playbook_dir }}/../terraform/terraform.tfvars.json"
+        path: "{{ local_workdir }}/talos"
         state: absent
+
+    - name: Remove Terraform vars files
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "{{ playbook_dir }}/../terraform/terraform.tfvars.json"
+        - "{{ playbook_dir }}/../terraform/talos/terraform.tfvars.json"
   tags: local_cleanup

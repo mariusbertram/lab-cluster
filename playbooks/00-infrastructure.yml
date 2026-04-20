@@ -35,10 +35,22 @@
             "ingress_vip_ipv6": "{{ ingress_vip_ipv6 }}",
             "storage_pool_path": "{{ storage_pool_path }}",
             "agent_iso_path": "{{ agent_iso_path }}",
+            "cluster_type": "{{ cluster_type | default('openshift') }}",
+            "talos_version": "{{ talos_version | default('') }}",
             "controlplanes": {{ ([nodes.controlplanes[0]] if cluster_flavor == 'sno' else nodes.controlplanes) | to_json }},
             "workers": {{ ([] if cluster_flavor in ['compact', 'sno'] else nodes.workers) | to_json }}
           }
         mode: '0644'
+
+    # --- Pre-Apply: Cleanup old UEFI NVRAMs to force new template (Setup Mode) ---
+    - name: Cleanup old UEFI NVRAM files
+      ansible.builtin.file:
+        path: "/var/lib/libvirt/qemu/nvram/uefi-{{ item.name }}.fd"
+        state: absent
+      delegate_to: hypervisor
+      become: true
+      loop: "{{ nodes.controlplanes + nodes.workers }}"
+      when: cluster_type == 'talos'
 
     - name: Terraform Init
       ansible.builtin.command:
